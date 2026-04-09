@@ -1,0 +1,64 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+.DS_Store
+dist
+dist-ssr
+coverage
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+*.tsbuildinfo
+
+.eslintcache
+
+# Cypress
+/cypress/videos/
+/cypress/screenshots/
+
+# Vitest
+__screenshots__/
+
+# Do Nothing: file tiếng chim lớn (dùng birds.mp3 nhẹ hoặc tiếng tổng hợp)
+public/sounds/*.flac
+
+# Generated at build time by scripts/generate-pages-json.mjs
+public/data/pages.json
+
+# Vite
+*.timestamp-*-*.mjs
+
+# We use pnpm — ignore package-lock.json to prevent accidental npm installs from being committed
+package-lock.json
+
+# AI tooling
+.agent/
+.agents/
+.claude/
+.cursor/
+skills-lock.json
+
+.env
+
+# Cloudflare / local worker artifacts
+.wrangler/
+.wrangler-*.log
+
+# Local dev logs
+dev-server*.log

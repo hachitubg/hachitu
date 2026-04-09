@@ -1,0 +1,680 @@
+[
+  {
+    "id": "happy",
+    "title": "Happy",
+    "code": ":)",
+    "imageUrl": "/chat-online/yahoo/happy.gif"
+  },
+  {
+    "id": "sad",
+    "title": "Sad",
+    "code": ":(",
+    "imageUrl": "/chat-online/yahoo/sad.gif"
+  },
+  {
+    "id": "winking",
+    "title": "Winking",
+    "code": ";)",
+    "imageUrl": "/chat-online/yahoo/winking.gif"
+  },
+  {
+    "id": "grin",
+    "title": "Big grin",
+    "code": ":D",
+    "imageUrl": "/chat-online/yahoo/grin.gif"
+  },
+  {
+    "id": "batting",
+    "title": "Batting eyelashes",
+    "code": ";;)",
+    "imageUrl": "/chat-online/yahoo/batting.gif"
+  },
+  {
+    "id": "confused",
+    "title": "Confused",
+    "code": ":-/",
+    "imageUrl": "/chat-online/yahoo/confused.gif"
+  },
+  {
+    "id": "love",
+    "title": "Love struck",
+    "code": ":x",
+    "imageUrl": "/chat-online/yahoo/love.gif"
+  },
+  {
+    "id": "blushing",
+    "title": "Blushing",
+    "code": ":\">",
+    "imageUrl": "/chat-online/yahoo/blushing.gif"
+  },
+  {
+    "id": "tongue",
+    "title": "Tongue",
+    "code": ":P",
+    "imageUrl": "/chat-online/yahoo/tongue.gif"
+  },
+  {
+    "id": "kiss",
+    "title": "Kiss",
+    "code": ":-*",
+    "imageUrl": "/chat-online/yahoo/kiss.gif"
+  },
+  {
+    "id": "surprised",
+    "title": "Surprised",
+    "code": ":-O",
+    "imageUrl": "/chat-online/yahoo/surprised.gif"
+  },
+  {
+    "id": "angry",
+    "title": "Angry",
+    "code": "x(",
+    "imageUrl": "/chat-online/yahoo/angry.gif"
+  },
+  {
+    "id": "smug",
+    "title": "Smug",
+    "code": ":>",
+    "imageUrl": "/chat-online/yahoo/smug.gif"
+  },
+  {
+    "id": "cool",
+    "title": "Cool",
+    "code": "B-)",
+    "imageUrl": "/chat-online/yahoo/cool.gif"
+  },
+  {
+    "id": "worried",
+    "title": "Worried",
+    "code": ":-s",
+    "imageUrl": "/chat-online/yahoo/worried.gif"
+  },
+  {
+    "id": "devil",
+    "title": "Devil",
+    "code": ">:)",
+    "imageUrl": "/chat-online/yahoo/devil.gif"
+  },
+  {
+    "id": "crying",
+    "title": "Crying",
+    "code": ":((",
+    "imageUrl": "/chat-online/yahoo/crying.gif"
+  },
+  {
+    "id": "laughing",
+    "title": "Laughing",
+    "code": ":))",
+    "imageUrl": "/chat-online/yahoo/laughing.gif"
+  },
+  {
+    "id": "straight",
+    "title": "Straight face",
+    "code": ":|",
+    "imageUrl": "/chat-online/yahoo/straight.gif"
+  },
+  {
+    "id": "raised",
+    "title": "Raised eyebrows",
+    "code": "/:)",
+    "imageUrl": "/chat-online/yahoo/raised.gif"
+  },
+  {
+    "id": "angel",
+    "title": "Angel",
+    "code": "O:-)",
+    "imageUrl": "/chat-online/yahoo/angel.gif"
+  },
+  {
+    "id": "nerd",
+    "title": "Nerd",
+    "code": ":-B",
+    "imageUrl": "/chat-online/yahoo/nerd.gif"
+  },
+  {
+    "id": "talkhand",
+    "title": "Talk to the hand",
+    "code": "=;",
+    "imageUrl": "/chat-online/yahoo/talkhand.gif"
+  },
+  {
+    "id": "sleepy",
+    "title": "Sleepy",
+    "code": "I-)",
+    "imageUrl": "/chat-online/yahoo/sleepy.gif"
+  },
+  {
+    "id": "rollingeyes",
+    "title": "Rolling eyes",
+    "code": "8-|",
+    "imageUrl": "/chat-online/yahoo/rollingeyes.gif"
+  },
+  {
+    "id": "sick",
+    "title": "Sick",
+    "code": ":-&",
+    "imageUrl": "/chat-online/yahoo/sick.gif"
+  },
+  {
+    "id": "notalking",
+    "title": "No talking",
+    "code": "[-(",
+    "imageUrl": "/chat-online/yahoo/notalking.gif"
+  },
+  {
+    "id": "clown",
+    "title": "Clown",
+    "code": ":O)",
+    "imageUrl": "/chat-online/yahoo/clown.gif"
+  },
+  {
+    "id": "silly",
+    "title": "Silly",
+    "code": "8-}",
+    "imageUrl": "/chat-online/yahoo/silly.gif"
+  },
+  {
+    "id": "yawn",
+    "title": "Yawn",
+    "code": "(:|",
+    "imageUrl": "/chat-online/yahoo/yawn.gif"
+  },
+  {
+    "id": "drooling",
+    "title": "Drooling",
+    "code": "=P~",
+    "imageUrl": "/chat-online/yahoo/drooling.gif"
+  },
+  {
+    "id": "thinking",
+    "title": "Thinking",
+    "code": ":-?",
+    "imageUrl": "/chat-online/yahoo/thinking.gif"
+  },
+  {
+    "id": "applause",
+    "title": "Applause",
+    "code": "=D>",
+    "imageUrl": "/chat-online/yahoo/applause.gif"
+  },
+  {
+    "id": "pig",
+    "title": "Pig",
+    "code": ":@)",
+    "imageUrl": "/chat-online/yahoo/pig.gif"
+  },
+  {
+    "id": "cow",
+    "title": "Cow",
+    "code": "3:-O",
+    "imageUrl": "/chat-online/yahoo/cow.gif"
+  },
+  {
+    "id": "monkey",
+    "title": "Monkey",
+    "code": ":(|)",
+    "imageUrl": "/chat-online/yahoo/monkey.gif"
+  },
+  {
+    "id": "chicken",
+    "title": "Chicken",
+    "code": "~:>",
+    "imageUrl": "/chat-online/yahoo/chicken.gif"
+  },
+  {
+    "id": "rose",
+    "title": "Rose",
+    "code": "@};-",
+    "imageUrl": "/chat-online/yahoo/rose.gif"
+  },
+  {
+    "id": "goodluck",
+    "title": "Good luck",
+    "code": "%%-",
+    "imageUrl": "/chat-online/yahoo/goodluck.gif"
+  },
+  {
+    "id": "flag",
+    "title": "Flag",
+    "code": "**==",
+    "imageUrl": "/chat-online/yahoo/flag.gif"
+  },
+  {
+    "id": "pumpkin",
+    "title": "Pumpkin",
+    "code": "(~~)",
+    "imageUrl": "/chat-online/yahoo/pumpkin.gif"
+  },
+  {
+    "id": "coffee",
+    "title": "Coffee",
+    "code": "~O)",
+    "imageUrl": "/chat-online/yahoo/coffee.gif"
+  },
+  {
+    "id": "idea",
+    "title": "Idea",
+    "code": "*-:)",
+    "imageUrl": "/chat-online/yahoo/idea.gif"
+  },
+  {
+    "id": "skull",
+    "title": "Skull",
+    "code": "8-X",
+    "imageUrl": "/chat-online/yahoo/skull.gif"
+  },
+  {
+    "id": "bug",
+    "title": "Bug",
+    "code": "=:)",
+    "imageUrl": "/chat-online/yahoo/bug.gif"
+  },
+  {
+    "id": "alien",
+    "title": "Alien",
+    "code": ">-)",
+    "imageUrl": "/chat-online/yahoo/alien.gif"
+  },
+  {
+    "id": "frustrated",
+    "title": "Frustrated",
+    "code": ":-L",
+    "imageUrl": "/chat-online/yahoo/frustrated.gif"
+  },
+  {
+    "id": "cowboy",
+    "title": "Cowboy",
+    "code": "<):)",
+    "imageUrl": "/chat-online/yahoo/cowboy.gif"
+  },
+  {
+    "id": "praying",
+    "title": "Praying",
+    "code": "[-O<",
+    "imageUrl": "/chat-online/yahoo/praying.gif"
+  },
+  {
+    "id": "hipno",
+    "title": "Hypnotized",
+    "code": "@-)",
+    "imageUrl": "/chat-online/yahoo/hipno.gif"
+  },
+  {
+    "id": "money",
+    "title": "Money eyes",
+    "code": "$-)",
+    "imageUrl": "/chat-online/yahoo/money.gif"
+  },
+  {
+    "id": "whistling",
+    "title": "Whistling",
+    "code": ":-\"",
+    "imageUrl": "/chat-online/yahoo/whistling.gif"
+  },
+  {
+    "id": "liar",
+    "title": "Liar",
+    "code": ":^o",
+    "imageUrl": "/chat-online/yahoo/liar.gif"
+  },
+  {
+    "id": "beatup",
+    "title": "Punch",
+    "code": "b-(",
+    "imageUrl": "/chat-online/yahoo/beatup.gif"
+  },
+  {
+    "id": "peace",
+    "title": "Peace sign",
+    "code": ":)>-",
+    "imageUrl": "/chat-online/yahoo/peace.gif"
+  },
+  {
+    "id": "shame",
+    "title": "Shame on you",
+    "code": "[-X",
+    "imageUrl": "/chat-online/yahoo/shame.gif"
+  },
+  {
+    "id": "dancing",
+    "title": "Dancing",
+    "code": "\\\\:D/",
+    "imageUrl": "/chat-online/yahoo/dancing.gif"
+  },
+  {
+    "id": "hug",
+    "title": "Big hug",
+    "code": ">:D<",
+    "imageUrl": "/chat-online/yahoo/hug.gif"
+  },
+  {
+    "id": "hiro",
+    "title": "Hiro",
+    "code": "o->",
+    "imageUrl": "/chat-online/yahoo/hiro.gif"
+  },
+  {
+    "id": "billy",
+    "title": "Billy",
+    "code": "o=>",
+    "imageUrl": "/chat-online/yahoo/billy.gif"
+  },
+  {
+    "id": "april",
+    "title": "April",
+    "code": "o-+",
+    "imageUrl": "/chat-online/yahoo/april.gif"
+  },
+  {
+    "id": "yinyang",
+    "title": "Yinyang",
+    "code": "(%)",
+    "imageUrl": "/chat-online/yahoo/yinyang.gif"
+  },
+  {
+    "id": "broken",
+    "title": "Broken heart",
+    "code": "=((",
+    "imageUrl": "/chat-online/yahoo/broken.gif"
+  },
+  {
+    "id": "whew",
+    "title": "Whew!",
+    "code": "#:-S",
+    "imageUrl": "/chat-online/yahoo/whew.gif"
+  },
+  {
+    "id": "rolling",
+    "title": "Rolling on the floor",
+    "code": "=))",
+    "imageUrl": "/chat-online/yahoo/rolling.gif"
+  },
+  {
+    "id": "loser",
+    "title": "Loser",
+    "code": "L-)",
+    "imageUrl": "/chat-online/yahoo/loser.gif"
+  },
+  {
+    "id": "party",
+    "title": "Party",
+    "code": "<:-P",
+    "imageUrl": "/chat-online/yahoo/party.gif"
+  },
+  {
+    "id": "nail",
+    "title": "Nail biting",
+    "code": ":-ss",
+    "imageUrl": "/chat-online/yahoo/nail.gif"
+  },
+  {
+    "id": "waiting",
+    "title": "Waiting",
+    "code": ":-w",
+    "imageUrl": "/chat-online/yahoo/waiting.gif"
+  },
+  {
+    "id": "sigh",
+    "title": "Sigh",
+    "code": ":-<",
+    "imageUrl": "/chat-online/yahoo/sigh.gif"
+  },
+  {
+    "id": "phbbt",
+    "title": "phbbbbt",
+    "code": ">:P",
+    "imageUrl": "/chat-online/yahoo/phbbt.gif"
+  },
+  {
+    "id": "bringit",
+    "title": "Bring it on",
+    "code": ">:/",
+    "imageUrl": "/chat-online/yahoo/bringit.gif"
+  },
+  {
+    "id": "hehe",
+    "title": "Hee hee",
+    "code": ";))",
+    "imageUrl": "/chat-online/yahoo/hehe.gif"
+  },
+  {
+    "id": "chatterbox",
+    "title": "Chatterbox",
+    "code": ":-@",
+    "imageUrl": "/chat-online/yahoo/chatterbox.gif"
+  },
+  {
+    "id": "notworthy",
+    "title": "Not worthy",
+    "code": "^:)^",
+    "imageUrl": "/chat-online/yahoo/notworthy.gif"
+  },
+  {
+    "id": "ohgoon",
+    "title": "Oh go on",
+    "code": ":-j",
+    "imageUrl": "/chat-online/yahoo/ohgoon.gif"
+  },
+  {
+    "id": "star",
+    "title": "Star",
+    "code": "(*)",
+    "imageUrl": "/chat-online/yahoo/star.gif"
+  },
+  {
+    "id": "phone",
+    "title": "On the phone",
+    "code": ":)]",
+    "imageUrl": "/chat-online/yahoo/phone.gif"
+  },
+  {
+    "id": "callme",
+    "title": "Call me",
+    "code": ":-c",
+    "imageUrl": "/chat-online/yahoo/callme.gif"
+  },
+  {
+    "id": "bye",
+    "title": "Wave",
+    "code": ":-h",
+    "imageUrl": "/chat-online/yahoo/bye.gif"
+  },
+  {
+    "id": "timeout",
+    "title": "Timeout",
+    "code": ":-t",
+    "imageUrl": "/chat-online/yahoo/timeout.gif"
+  },
+  {
+    "id": "daydreaming",
+    "title": "Daydreaming",
+    "code": "8->",
+    "imageUrl": "/chat-online/yahoo/daydreaming.gif"
+  },
+  {
+    "id": "notlistening",
+    "title": "Not listening",
+    "code": "%-(",
+    "imageUrl": "/chat-online/yahoo/notlistening.gif"
+  },
+  {
+    "id": "puppy",
+    "title": "Puppy",
+    "code": ":o3",
+    "imageUrl": "/chat-online/yahoo/puppy.gif"
+  },
+  {
+    "id": "hurryup",
+    "title": "Hurry up",
+    "code": ":!!",
+    "imageUrl": "/chat-online/yahoo/hurryup.gif"
+  },
+  {
+    "id": "rockon",
+    "title": "Rock on",
+    "code": "\\\\m/",
+    "imageUrl": "/chat-online/yahoo/rockon.gif"
+  },
+  {
+    "id": "thumbdown",
+    "title": "Thumbs down",
+    "code": ":-q",
+    "imageUrl": "/chat-online/yahoo/thumbdown.gif"
+  },
+  {
+    "id": "thumbup",
+    "title": "Thumbs up",
+    "code": ":-bd",
+    "imageUrl": "/chat-online/yahoo/thumbup.gif"
+  },
+  {
+    "id": "bee",
+    "title": "Bee",
+    "code": ":bz",
+    "imageUrl": "/chat-online/yahoo/bee.gif"
+  },
+  {
+    "id": "cheer",
+    "title": "Cheer",
+    "code": "~^o^~",
+    "imageUrl": "/chat-online/yahoo/cheer.gif"
+  },
+  {
+    "id": "dizzy",
+    "title": "Dizzy",
+    "code": "'@^@|||",
+    "imageUrl": "/chat-online/yahoo/dizzy.gif"
+  },
+  {
+    "id": "cook",
+    "title": "Cook",
+    "code": "[]---",
+    "imageUrl": "/chat-online/yahoo/cook.gif"
+  },
+  {
+    "id": "eat",
+    "title": "Eat",
+    "code": "^o^||3",
+    "imageUrl": "/chat-online/yahoo/eat.gif"
+  },
+  {
+    "id": "giveup",
+    "title": "Give up",
+    "code": ":-(||>",
+    "imageUrl": "/chat-online/yahoo/giveup.gif"
+  },
+  {
+    "id": "cold",
+    "title": "Cold",
+    "code": "'+_+",
+    "imageUrl": "/chat-online/yahoo/cold.gif"
+  },
+  {
+    "id": "hot",
+    "title": "Hot",
+    "code": ":::^^:::",
+    "imageUrl": "/chat-online/yahoo/hot.gif"
+  },
+  {
+    "id": "music",
+    "title": "Music",
+    "code": "o|^_^|o",
+    "imageUrl": "/chat-online/yahoo/music.gif"
+  },
+  {
+    "id": "vomit",
+    "title": "Vomit",
+    "code": ":puke!",
+    "imageUrl": "/chat-online/yahoo/vomit.gif"
+  },
+  {
+    "id": "sing",
+    "title": "Sing",
+    "code": "o|\\\\~",
+    "imageUrl": "/chat-online/yahoo/sing.gif"
+  },
+  {
+    "id": "catch",
+    "title": "Catch",
+    "code": "o|:-)",
+    "imageUrl": "/chat-online/yahoo/catch.gif"
+  },
+  {
+    "id": "exercise",
+    "title": "Exercise",
+    "code": "[]==[]",
+    "imageUrl": "/chat-online/yahoo/exercise.gif"
+  },
+  {
+    "id": "highfive",
+    "title": "High Five!",
+    "code": ":-)/\\\\:-)",
+    "imageUrl": "/chat-online/yahoo/highfive.gif"
+  },
+  {
+    "id": "gaming",
+    "title": "Gaming",
+    "code": ":(game)",
+    "imageUrl": "/chat-online/yahoo/gaming.gif"
+  },
+  {
+    "id": "searchme",
+    "title": "Search me",
+    "code": "'@-@",
+    "imageUrl": "/chat-online/yahoo/searchme.gif"
+  },
+  {
+    "id": "spooky",
+    "title": "Spooky",
+    "code": ":->~~",
+    "imageUrl": "/chat-online/yahoo/spooky.gif"
+  },
+  {
+    "id": "studying",
+    "title": "Studying",
+    "code": "?@_@?",
+    "imageUrl": "/chat-online/yahoo/studying.gif"
+  },
+  {
+    "id": "tv",
+    "title": "TV",
+    "code": ":(tv)",
+    "imageUrl": "/chat-online/yahoo/tv.gif"
+  },
+  {
+    "id": "gift",
+    "title": "Gift",
+    "code": "&[]",
+    "imageUrl": "/chat-online/yahoo/gift.gif"
+  },
+  {
+    "id": "unlucky",
+    "title": "Unlucky",
+    "code": "%||:-{",
+    "imageUrl": "/chat-online/yahoo/unlucky.gif"
+  },
+  {
+    "id": "downonluck",
+    "title": "Down on luck",
+    "code": "%*-{",
+    "imageUrl": "/chat-online/yahoo/downonluck.gif"
+  },
+  {
+    "id": "fight",
+    "title": "Fight",
+    "code": ":(fight)",
+    "imageUrl": "/chat-online/yahoo/fight.gif"
+  },
+  {
+    "id": "pirate",
+    "title": "Pirate",
+    "code": ":ar!",
+    "imageUrl": "/chat-online/yahoo/pirate.gif"
+  },
+  {
+    "id": "transformer",
+    "title": "Transformer",
+    "code": "[..]",
+    "imageUrl": "/chat-online/yahoo/transformer.gif"
+  }
+]
