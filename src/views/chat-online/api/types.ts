@@ -2,6 +2,7 @@ export interface ChatParticipant {
   participantId: string
   sessionId: string
   displayName: string
+  avatarPreset: string | null
   joinedAt: number
   lastSeenAt: number
   lastTypingAt: number | null
@@ -55,12 +56,14 @@ export interface ChatDiscoveryItem {
 export interface CreateChatRoomRequest {
   displayName: string
   roomName: string
+  avatarPreset: string | null
 }
 
 export interface JoinChatRoomRequest {
   displayName: string
   sessionId: string
   participantId: string
+  avatarPreset: string | null
 }
 
 export interface LeaveChatRoomRequest {
@@ -74,6 +77,7 @@ export interface CreateChatRoomResponse {
     participantId: string
     sessionId: string
     displayName: string
+    avatarPreset: string | null
   }
   joinPath: string
   api: {
@@ -223,11 +227,14 @@ export interface StoredChatRoomIdentity {
   participantId: string
   sessionId: string
   displayName: string
+  avatarPreset: string | null
 }
 
 export interface StoredChatProfile {
   globalSessionId: string
   displayName: string
+  avatarPreset: string | null
+  avatarImageDataUrl: string | null
   rooms: Record<string, StoredChatRoomIdentity>
 }
 
@@ -244,6 +251,7 @@ export interface StoredChatSavedRoom {
   participantId: string
   sessionId: string
   displayName: string
+  avatarPreset: string | null
   role: 'host' | 'member'
   lastVisitedAt: number
 }

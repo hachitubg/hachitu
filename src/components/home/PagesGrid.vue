@@ -82,7 +82,7 @@ useSearchShortcut(searchInputRef)
 </script>
 
 <template>
-  <main id="apps" class="max-w-5xl mx-auto px-4 sm:px-6 pb-16 scroll-reveal">
+  <main id="apps" class="max-w-6xl mx-auto px-4 sm:px-6 pb-16 scroll-reveal">
     <h2
       v-animate
       class="font-display text-xl sm:text-2xl font-semibold text-text-primary mb-8 flex items-center gap-3"

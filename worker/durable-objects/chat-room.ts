@@ -71,7 +71,14 @@ export class ChatRoomDurableObject extends DurableObject<Env> {
   }
 
   private async scheduleAlarm(room: ChatRoomRecord) {
-    await this.ctx.storage.setAlarm(getChatAlarmAt(room))
+    const nextAlarmAt = Math.max(Date.now() + 1000, getChatAlarmAt(room))
+
+    try {
+      await this.ctx.storage.setAlarm(nextAlarmAt)
+    }
+    catch (error) {
+      console.warn('chat-room: bỏ qua lỗi scheduleAlarm trong local dev', error)
+    }
   }
 
   private getConnectionAttachment(request: Request): ChatConnectionAttachment {
@@ -80,6 +87,7 @@ export class ChatRoomDurableObject extends DurableObject<Env> {
       participantId: url.searchParams.get('participantId') ?? '',
       sessionId: url.searchParams.get('sessionId') ?? '',
       displayName: url.searchParams.get('displayName') ?? 'Guest',
+      avatarPreset: url.searchParams.get('avatarPreset') ?? null,
     }
   }
 
@@ -237,6 +245,7 @@ export class ChatRoomDurableObject extends DurableObject<Env> {
             participantId: hostParticipantId,
             sessionId: hostSessionId,
             displayName: input.displayName,
+            avatarPreset: input.avatarPreset,
             joinedAt: now,
             lastSeenAt: now,
             lastTypingAt: null,
@@ -256,6 +265,7 @@ export class ChatRoomDurableObject extends DurableObject<Env> {
           participantId: hostParticipantId,
           sessionId: hostSessionId,
           displayName: input.displayName,
+          avatarPreset: input.avatarPreset,
         },
       })
     }
@@ -284,6 +294,7 @@ export class ChatRoomDurableObject extends DurableObject<Env> {
               ? {
                   ...participant,
                   displayName: input.displayName,
+                  avatarPreset: input.avatarPreset,
                   sessionId: input.sessionId,
                   lastSeenAt: now,
                 }
@@ -295,6 +306,7 @@ export class ChatRoomDurableObject extends DurableObject<Env> {
               participantId: input.participantId,
               sessionId: input.sessionId,
               displayName: input.displayName,
+              avatarPreset: input.avatarPreset,
               joinedAt: now,
               lastSeenAt: now,
               lastTypingAt: null,
@@ -319,7 +331,7 @@ export class ChatRoomDurableObject extends DurableObject<Env> {
         participant:
           nextParticipants.find((participant) => participant.participantId === input.participantId) ??
           null,
-        websocketUrl: `/api/chat/rooms/${nextRoom.roomId}/ws?participantId=${input.participantId}&sessionId=${input.sessionId}&displayName=${encodeURIComponent(input.displayName)}`,
+        websocketUrl: `/api/chat/rooms/${nextRoom.roomId}/ws?participantId=${input.participantId}&sessionId=${input.sessionId}&displayName=${encodeURIComponent(input.displayName)}${input.avatarPreset ? `&avatarPreset=${encodeURIComponent(input.avatarPreset)}` : ''}`,
       })
     }
 
@@ -390,6 +402,7 @@ export class ChatRoomDurableObject extends DurableObject<Env> {
         participants: this.touchParticipant(room, attachment.participantId, {
           connected: true,
           displayName: attachment.displayName || participant.displayName,
+          avatarPreset: attachment.avatarPreset ?? participant.avatarPreset,
           lastSeenAt: now,
         }),
         lastActiveAt: now,
@@ -601,27 +614,32 @@ export class ChatRoomDurableObject extends DurableObject<Env> {
   }
 
   async alarm() {
-    const room = this.readRoom()
-    if (!room) {
-      return
+    try {
+      const room = this.readRoom()
+      if (!room) {
+        return
+      }
+
+      const now = Date.now()
+      if (!shouldExpireChatRoom(room, now)) {
+        await this.scheduleAlarm(room)
+        return
+      }
+
+      this.broadcast({
+        type: 'room_expiring',
+        expiresAt: room.expiresAt,
+        serverTime: now,
+      })
+
+      for (const socket of this.ctx.getWebSockets()) {
+        socket.close(1001, 'Chat room expired')
+      }
+
+      await this.ctx.storage.deleteAll()
     }
-
-    const now = Date.now()
-    if (!shouldExpireChatRoom(room, now)) {
-      await this.scheduleAlarm(room)
-      return
+    catch (error) {
+      console.warn('chat-room: bỏ qua lỗi alarm trong local dev', error)
     }
-
-    this.broadcast({
-      type: 'room_expiring',
-      expiresAt: room.expiresAt,
-      serverTime: now,
-    })
-
-    for (const socket of this.ctx.getWebSockets()) {
-      socket.close(1001, 'Chat room expired')
-    }
-
-    await this.ctx.storage.deleteAll()
   }
 }

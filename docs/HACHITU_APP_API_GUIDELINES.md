@@ -339,3 +339,16 @@ Hãy nghĩ theo kiểu:
 - "shared layer chỉ chứa hạ tầng dùng lại"
 
 Đó là cách giữ cho `HACHITU` mở rộng được từ vài mini-app sang nhiều mini-app mà không phải đại tu cấu trúc giữa chừng.
+
+## AI gateway dùng chung
+
+Khi app cần LLM hoặc AI API:
+
+- không gọi provider trực tiếp từ frontend
+- frontend gọi endpoint nội bộ như `/api/ai/chat`
+- Worker giữ secret và chịu trách nhiệm gọi provider
+- nếu nhiều app cùng dùng AI, shared layer nằm ở `worker/apps/ai/*`
+
+Tài liệu chi tiết:
+
+- `docs/HACHITU_AI_API_GUIDELINES.md`

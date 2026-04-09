@@ -5,6 +5,7 @@ import ProjectLinksSection from '@/components/home/ProjectLinksSection.vue'
 import RecentlyViewed from '@/components/home/RecentlyViewed.vue'
 import SiteFooter from '@/components/home/SiteFooter.vue'
 import SourceTributeSection from '@/components/home/SourceTributeSection.vue'
+import TechStackSection from '@/components/home/TechStackSection.vue'
 </script>
 
 <template>
@@ -13,6 +14,7 @@ import SourceTributeSection from '@/components/home/SourceTributeSection.vue'
     <PagesGrid />
     <RecentlyViewed />
     <ProjectLinksSection />
+    <TechStackSection />
     <SourceTributeSection />
     <SiteFooter />
   </div>

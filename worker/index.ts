@@ -1,4 +1,5 @@
 import { routeRoomRequest, type MultiplayerEnv } from './routes/rooms'
+import { routeAiGatewayRequest, type AiGatewayEnv } from './routes/apps/ai'
 import { routeChatOnlineRequest, type ChatOnlineEnv } from './routes/apps/chat-online'
 import { GameRoomDurableObject } from './durable-objects/game-room'
 import { ChatRoomDurableObject } from './durable-objects/chat-room'
@@ -6,10 +7,15 @@ import { ChatRoomDurableObject } from './durable-objects/chat-room'
 export { GameRoomDurableObject }
 export { ChatRoomDurableObject }
 
-export type Env = MultiplayerEnv & ChatOnlineEnv
+export type Env = MultiplayerEnv & ChatOnlineEnv & AiGatewayEnv
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
+    const aiGatewayResponse = await routeAiGatewayRequest(request, env)
+    if (aiGatewayResponse) {
+      return aiGatewayResponse
+    }
+
     const chatOnlineResponse = await routeChatOnlineRequest(request, env)
     if (chatOnlineResponse) {
       return chatOnlineResponse

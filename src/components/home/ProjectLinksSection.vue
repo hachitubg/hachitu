@@ -9,10 +9,6 @@ import { homepageProjectLinks } from '@/data/homepage'
       <span class="font-display text-accent-coral text-sm tracking-[0.24em]">//</span>
       <h2 class="font-display text-2xl sm:text-3xl text-text-primary">Website Tôi Đã Làm</h2>
     </div>
-    <p class="mt-3 max-w-2xl text-sm leading-7 text-text-dim">
-      Một vài website tôi đã triển khai trước đây. Phần này chỉ giữ ở mức gọn để trang chủ vẫn
-      tập trung vào các app chính của HACHITU.
-    </p>
 
     <div class="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
       <a

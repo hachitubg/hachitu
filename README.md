@@ -20,12 +20,25 @@ Starter này đã có tài liệu kiến trúc cho game online giữa bạn bè 
 - Cloudflare Durable Objects
 - WebSocket cho realtime room
 - SQLite-backed room storage
-- TTL cleanup theo từng room thay vì xóa sạch database
+- TTL cleanup theo từng room
 
 Xem chi tiết tại:
 
 - `docs/HACHITU_MULTIPLAYER_ARCHITECTURE.md`
 - `docs/HACHITU_APP_API_GUIDELINES.md`
+
+## Hướng mở rộng AI API
+
+Repo đã có sẵn AI gateway qua Worker để các mini-app dùng chung một secret OpenRouter và chỉ gọi free models nếu muốn.
+
+Các endpoint hiện có:
+
+- `GET /api/ai/models/free`
+- `POST /api/ai/chat`
+
+Xem chi tiết tại:
+
+- `docs/HACHITU_AI_API_GUIDELINES.md`
 
 ## Chạy local
 
@@ -34,7 +47,7 @@ pnpm install
 pnpm dev
 ```
 
-## Chạy phần multiplayer scaffold
+## Chạy phần Worker
 
 Frontend hiện vẫn chạy bằng:
 
@@ -42,20 +55,21 @@ Frontend hiện vẫn chạy bằng:
 pnpm dev:app
 ```
 
-Worker multiplayer scaffold chạy bằng:
+Worker chạy bằng:
 
 ```sh
 pnpm dev:worker
 ```
 
-Phần Worker hiện đã có:
+## Cấu hình AI local
 
-- API room cơ bản trong `worker/routes/rooms.ts`
-- Durable Object room trong `worker/durable-objects/game-room.ts`
-- protocol WebSocket trong `worker/multiplayer/protocol.ts`
-- TTL cleanup trong `worker/multiplayer/ttl.ts`
+Tạo file `.dev.vars` cạnh `wrangler.json`:
 
-Đây là khung backend để bạn triển khai game thật, chưa phải gameplay hoàn chỉnh.
+```dotenv
+OPENROUTER_API_KEY="sk-or-v1-your-key"
+OPENROUTER_SITE_URL="http://127.0.0.1:8787"
+OPENROUTER_SITE_NAME="HACHITU Local"
+```
 
 ## Việc nên làm đầu tiên
 
@@ -74,6 +88,7 @@ pnpm create:page my-first-app
 - `docs/HACHITU_LIGHT_DESIGN_SYSTEM.md`
 - `docs/HACHITU_MULTIPLAYER_ARCHITECTURE.md`
 - `docs/HACHITU_APP_API_GUIDELINES.md`
+- `docs/HACHITU_AI_API_GUIDELINES.md`
 - `docs/HACHITU_DEPLOYMENT.md`
 
 ## Deploy

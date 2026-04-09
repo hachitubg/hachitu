@@ -19,6 +19,11 @@ function trimToLength(value: string, maxLength: number): string {
   return value.trim().slice(0, maxLength)
 }
 
+function normalizeAvatarPreset(value: string | null | undefined): string | null {
+  const preset = trimToLength(value ?? '', 16)
+  return preset || null
+}
+
 function isSafeMediaUrl(value: string): boolean {
   return /^https:\/\/[^\s]+$/i.test(value) || /^\/chat-online\/[^\s]+$/i.test(value)
 }
@@ -29,6 +34,7 @@ export function normalizeCreateChatRoomInput(
   return {
     displayName: trimToLength(input.displayName ?? '', MAX_DISPLAY_NAME_LENGTH) || 'Host',
     roomName: trimToLength(input.roomName ?? '', MAX_ROOM_NAME_LENGTH) || 'HACHITU Chat Room',
+    avatarPreset: normalizeAvatarPreset(input.avatarPreset),
   }
 }
 
@@ -37,6 +43,7 @@ export function normalizeJoinChatRoomInput(input: Partial<JoinChatRoomInput>): J
     displayName: trimToLength(input.displayName ?? '', MAX_DISPLAY_NAME_LENGTH) || 'Guest',
     sessionId: trimToLength(input.sessionId ?? '', 64) || createSessionId(),
     participantId: trimToLength(input.participantId ?? '', 64) || createPlayerId(),
+    avatarPreset: normalizeAvatarPreset(input.avatarPreset),
   }
 }
 

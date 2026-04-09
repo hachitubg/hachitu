@@ -55,7 +55,14 @@ export class GameRoomDurableObject extends DurableObject<Env> {
   }
 
   private async scheduleAlarm(room: GameRoomRecord) {
-    await this.ctx.storage.setAlarm(getNextAlarmAt(room))
+    const nextAlarmAt = Math.max(Date.now() + 1000, getNextAlarmAt(room))
+
+    try {
+      await this.ctx.storage.setAlarm(nextAlarmAt)
+    }
+    catch (error) {
+      console.warn('game-room: bỏ qua lỗi scheduleAlarm trong local dev', error)
+    }
   }
 
   private buildPlayerConnectedState(players: RoomPlayer[], playerId: string, connected: boolean): RoomPlayer[] {
@@ -423,28 +430,33 @@ export class GameRoomDurableObject extends DurableObject<Env> {
   }
 
   async alarm() {
-    const room = this.readRoom()
-    if (!room) {
-      return
+    try {
+      const room = this.readRoom()
+      if (!room) {
+        return
+      }
+
+      const now = Date.now()
+
+      if (!shouldExpireRoom(room, now)) {
+        await this.scheduleAlarm(room)
+        return
+      }
+
+      this.broadcast({
+        type: 'room_expiring',
+        expiresAt: room.expiresAt,
+        serverTime: now,
+      })
+
+      for (const socket of this.ctx.getWebSockets()) {
+        socket.close(1001, 'Room expired')
+      }
+
+      await this.ctx.storage.deleteAll()
     }
-
-    const now = Date.now()
-
-    if (!shouldExpireRoom(room, now)) {
-      await this.scheduleAlarm(room)
-      return
+    catch (error) {
+      console.warn('game-room: bỏ qua lỗi alarm trong local dev', error)
     }
-
-    this.broadcast({
-      type: 'room_expiring',
-      expiresAt: room.expiresAt,
-      serverTime: now,
-    })
-
-    for (const socket of this.ctx.getWebSockets()) {
-      socket.close(1001, 'Room expired')
-    }
-
-    await this.ctx.storage.deleteAll()
   }
 }

@@ -4,7 +4,6 @@ import { useHead, useSeoMeta } from '@unhead/vue'
 import { RouterView, useRoute } from 'vue-router'
 import AppNavbar from '@/components/AppNavbar.vue'
 import BackToTop from '@/components/BackToTop.vue'
-import EdgeToolbar from '@/components/EdgeToolbar.vue'
 import ErrorBoundary from '@/components/ErrorBoundary.vue'
 
 const route = useRoute()
@@ -46,9 +45,5 @@ useSeoMeta({
       <component :is="Component" />
     </ErrorBoundary>
   </RouterView>
-  <EdgeToolbar
-    v-if="route.meta.pagePath && route.meta.showToolbar !== false"
-    :page-path="route.meta.pagePath as string"
-  />
   <BackToTop v-if="isCorePage" />
 </template>

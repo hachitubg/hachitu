@@ -2,6 +2,7 @@ export interface ChatParticipant {
   participantId: string
   sessionId: string
   displayName: string
+  avatarPreset: string | null
   joinedAt: number
   lastSeenAt: number
   lastTypingAt: number | null
@@ -46,17 +47,20 @@ export interface ChatConnectionAttachment {
   participantId: string
   sessionId: string
   displayName: string
+  avatarPreset: string | null
 }
 
 export interface CreateChatRoomInput {
   displayName: string
   roomName: string
+  avatarPreset: string | null
 }
 
 export interface JoinChatRoomInput {
   displayName: string
   sessionId: string
   participantId: string
+  avatarPreset: string | null
 }
 
 export interface LeaveChatRoomInput {

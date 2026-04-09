@@ -365,3 +365,16 @@ Chưa cần ở `v1`:
 1. bỏ bối cảnh cộng đồng
 2. rebrand toàn bộ metadata
 3. đổi design token sang light theme thay vì viết lại toàn bộ UI
+
+## Mở rộng AI về sau
+
+Nếu `HACHITU` có nhiều mini-app cần AI:
+
+- dùng một AI gateway chung trong `worker/`
+- giữ `OPENROUTER_API_KEY` ở backend
+- frontend của từng app chỉ gọi `/api/ai/chat`
+- mặc định dùng `openrouter/free` nếu muốn ưu tiên free-first và tự fallback trong nhóm model miễn phí
+
+Tài liệu chi tiết:
+
+- `docs/HACHITU_AI_API_GUIDELINES.md`

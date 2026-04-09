@@ -16,8 +16,9 @@ export const homepageTechItems: HomepageTechItem[] = [
     tone: 'coral',
   },
   {
-    title: 'Backend Call API',
-    value: 'Cloudflare Workers, Durable Objects, WebSocket',
+    title: 'Backend & API',
+    value:
+      'Cloudflare Workers, OpenRouter AI Gateway, Durable Objects, WebSocket',
     tone: 'sky',
   },
   {

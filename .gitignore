@@ -55,6 +55,9 @@ package-lock.json
 skills-lock.json
 
 .env
+.env*
+.dev.vars*
+!.dev.vars.example
 
 # Cloudflare / local worker artifacts
 .wrangler/
