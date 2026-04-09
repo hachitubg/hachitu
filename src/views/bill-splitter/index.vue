@@ -195,6 +195,21 @@ function setSetupColor(id: string, hex: string) {
   if (m) m.color = hex
 }
 
+function toggleSetupAvatarPicker(id: string) {
+  avatarPickerOpen.value = avatarPickerOpen.value === id ? null : id
+  colorPickerOpen.value = null
+}
+
+function toggleSetupColorPicker(id: string) {
+  colorPickerOpen.value = colorPickerOpen.value === id ? null : id
+  avatarPickerOpen.value = null
+}
+
+function selectSetupColor(id: string, hex: string) {
+  setSetupColor(id, hex)
+  colorPickerOpen.value = null
+}
+
 function setSetupEmoji(id: string, emoji: string) {
   const m = setupMembers.value.find((m) => m.id === id)
   if (m) {
@@ -683,10 +698,7 @@ function isPhoto(avatar?: string) {
                 class="size-9 rounded-full shrink-0 overflow-hidden border-2 border-white shadow-sm transition hover:scale-110 ring-offset-1 relative"
                 :class="avatarPickerOpen === m.id ? 'ring-2 ring-accent-coral' : ''"
                 :style="!m.avatar || !isPhoto(m.avatar) ? { backgroundColor: m.color } : {}"
-                @click="
-                  avatarPickerOpen = avatarPickerOpen === m.id ? null : m.id
-                  colorPickerOpen = null
-                "
+                @click="toggleSetupAvatarPicker(m.id)"
               >
                 <img
                   v-if="isPhoto(m.avatar)"
@@ -705,10 +717,7 @@ function isPhoto(avatar?: string) {
                 class="size-4 rounded-full shrink-0 border border-white shadow-sm transition hover:scale-110 ring-offset-1"
                 :class="colorPickerOpen === m.id ? 'ring-2 ring-accent-coral' : ''"
                 :style="{ backgroundColor: m.color }"
-                @click="
-                  colorPickerOpen = colorPickerOpen === m.id ? null : m.id
-                  avatarPickerOpen = null
-                "
+                @click="toggleSetupColorPicker(m.id)"
               />
 
               <input
@@ -793,10 +802,7 @@ function isPhoto(avatar?: string) {
                   borderColor: m.color === hex ? '#2f241f' : 'white',
                 }"
                 :disabled="setupMembers.some((sp) => sp.id !== m.id && sp.color === hex)"
-                @click="
-                  setSetupColor(m.id, hex)
-                  colorPickerOpen = null
-                "
+                @click="selectSetupColor(m.id, hex)"
               />
             </div>
           </div>
