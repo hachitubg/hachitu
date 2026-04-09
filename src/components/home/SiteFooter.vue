@@ -3,10 +3,10 @@ import { REPO_URL } from '@/data/constants'
 </script>
 
 <template>
-  <footer class="border-t-2 border-accent-coral py-8 text-center">
+  <footer class="border-t-2 border-accent-coral py-8 text-center px-4">
     <p class="text-sm text-text-dim font-display tracking-wide">
       <span class="text-text-secondary">//</span>
-      Mã nguồn của
+      Mã nguồn hiện tại của
       <a
         :href="REPO_URL"
         target="_blank"
@@ -15,9 +15,11 @@ import { REPO_URL } from '@/data/constants'
       >
         HACHITU
       </a>
+      đang được phát triển như một repo riêng.
     </p>
     <p class="mt-3 text-xs text-text-dim">
-      Một repo cá nhân để gom mini-app, tool nhỏ và các thử nghiệm realtime.
+      Frontend chạy theo mô hình launcher mini-app; backend realtime hiện dùng Cloudflare Workers,
+      Durable Objects và SQLite-backed storage cho room state.
     </p>
   </footer>
 </template>

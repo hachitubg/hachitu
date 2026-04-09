@@ -131,7 +131,6 @@ const deltaFlash = ref<Record<string, number>>({})
 const showHistory = ref(false)
 const showConfigSheet = ref(false)
 const showManagePlayers = ref(false)
-const PRESETS = [-10, -5, -4, -3, -2, -1, +1, +2, +3, +4, +5, +10]
 
 // inline color picker per player
 const colorPickerOpen = ref<string | null>(null)
@@ -481,9 +480,18 @@ const MEDAL = ['🥇', '🥈', '🥉']
 
       <!-- Header -->
       <header class="flex items-center justify-between px-4 py-3 border-b border-border-default bg-bg-surface shrink-0">
-        <div>
-          <h1 class="font-display font-bold text-text-primary leading-tight">{{ session.name }}</h1>
-          <p class="text-text-dim text-xs">Ván {{ session.rounds.length + 1 }}</p>
+        <div class="flex items-center gap-2 min-w-0">
+          <RouterLink
+            to="/"
+            class="size-8 shrink-0 flex items-center justify-center text-text-dim hover:text-accent-coral transition border border-border-default bg-bg-surface"
+            title="Về trang chủ"
+          >
+            <Icon icon="lucide:home" class="size-4" />
+          </RouterLink>
+          <div class="min-w-0">
+            <h1 class="font-display font-bold text-text-primary leading-tight truncate">{{ session.name }}</h1>
+            <p class="text-text-dim text-xs">Ván {{ session.rounds.length + 1 }}</p>
+          </div>
         </div>
         <div class="flex items-center gap-2">
           <button
@@ -518,8 +526,8 @@ const MEDAL = ['🥇', '🥈', '🥉']
           class="flex flex-row items-stretch border-b border-border-default"
           :style="{ borderLeftColor: p.color, borderLeftWidth: '4px', backgroundColor: colorHex(p.color, 0.05), flex: '1 1 0', minHeight: '72px' }"
         >
-          <!-- Trái: tên + preset chips -->
-          <div class="flex-1 min-w-0 flex flex-col justify-center gap-1 px-3 py-2">
+          <!-- Trái: tên -->
+          <div class="flex-1 min-w-0 flex flex-col justify-center px-3 py-2">
             <span
               class="font-display font-bold leading-tight truncate"
               :class="nameSizeClass"
@@ -527,17 +535,6 @@ const MEDAL = ['🥇', '🥈', '🥉']
             >
               {{ p.name }}
             </span>
-            <div class="flex gap-1 overflow-x-auto" style="scrollbar-width:none">
-              <button
-                v-for="val in PRESETS"
-                :key="val"
-                class="shrink-0 border font-display font-semibold px-1.5 py-0.5 transition active:scale-95 select-none"
-                :class="[deltaSizeClass, val < 0 ? 'border-red-200 text-red-600 hover:bg-red-50' : 'border-green-200 text-green-700 hover:bg-green-50']"
-                @click="changeInput(p.id, val)"
-              >
-                {{ val > 0 ? '+' : '' }}{{ val }}
-              </button>
-            </div>
           </div>
 
           <!-- Giữa: điểm + delta -->

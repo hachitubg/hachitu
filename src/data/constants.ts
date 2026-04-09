@@ -1,1 +1,1 @@
-export const REPO_URL = 'https://github.com/yourname/hachitu'
+export const REPO_URL = 'https://github.com/hachitubg/hachitu'
