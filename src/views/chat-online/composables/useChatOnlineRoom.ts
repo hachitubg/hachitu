@@ -1,14 +1,6 @@
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import {
-  useClipboard,
-  useDebounceFn,
-  useIntervalFn,
-  useLocalStorage,
-  useNow,
-  useOnline,
-  useWebSocket,
-} from '@vueuse/core'
+import { useClipboard, useDebounceFn, useNow, useOnline } from '@vueuse/core'
 import {
   createChatRoom,
   getChatDiscoveries,
@@ -17,12 +9,13 @@ import {
   joinChatRoom,
   leaveChatRoom,
 } from '../api/client'
-import { parseChatSocketMessage, serializeChatSocketMessage, toChatWebSocketUrl } from '../api/ws'
+import type { ChatSocket } from '../api/ws'
+import { connectChatSocket, onChatSocketMessage, sendChatSocketMessage } from '../api/ws'
 import type {
   ChatDiscoveryItem,
   ChatMediaAttachment,
-  ChatParticipant,
   ChatRoomRecord,
+  ChatSocketClientMessage,
   ChatSocketServerMessage,
   StoredChatProfile,
   StoredChatRoomIdentity,
@@ -88,11 +81,10 @@ export function useChatOnlineRoom() {
   const router = useRouter()
   const now = useNow({ interval: 1000 })
   const isOnline = useOnline()
-  const profile = useLocalStorage<StoredChatProfile>(
-    'hachitu-chat-online-profile',
-    createDefaultProfile(),
-  )
-  const savedRooms = useLocalStorage<StoredChatSavedRoom[]>('hachitu-chat-online-rooms', [])
+  const { copy, copied } = useClipboard()
+
+  const profile = ref<StoredChatProfile>(createDefaultProfile())
+  const savedRooms = ref<StoredChatSavedRoom[]>([])
   const displayNameDraft = ref('')
   const roomNameDraft = ref('')
   const inviteCodeDraft = ref('')
@@ -110,10 +102,9 @@ export function useChatOnlineRoom() {
   const isLoadingMoreDiscoveries = ref(false)
   const isLoadingYahoo = ref(false)
   const isSyncingSavedRooms = ref(false)
-  const socketPath = ref('')
   const socketConnected = ref(false)
-  const lastJoinedRoomId = ref('')
   const composerPanel = ref<ComposerPanel>('none')
+  const socketRef = shallowRef<ChatSocket | null>(null)
 
   const avatarPresets = [
     { id: 'fox', label: 'Fox', emoji: '🦊' },
@@ -125,62 +116,6 @@ export function useChatOnlineRoom() {
     { id: 'sun', label: 'Sun', emoji: '🌞' },
     { id: 'spark', label: 'Spark', emoji: '✨' },
   ] as const
-
-  const { copy, copied } = useClipboard()
-
-  function mergeDiscoveries(items: ChatDiscoveryItem[], append: boolean): ChatDiscoveryItem[] {
-    if (!append) {
-      return items
-    }
-
-    const next = [...discoveries.value]
-    const seen = new Set(next.map((item) => `${item.mediaKind}:${item.id}`))
-
-    for (const item of items) {
-      const key = `${item.mediaKind}:${item.id}`
-      if (seen.has(key)) {
-        continue
-      }
-      seen.add(key)
-      next.push(item)
-    }
-
-    return next
-  }
-
-  const socket = useWebSocket(socketPath, {
-    immediate: false,
-    autoConnect: false,
-    autoReconnect: {
-      retries: 6,
-      delay: 1200,
-    },
-    onConnected() {
-      socketConnected.value = true
-      errorMessage.value = ''
-      startPing()
-      socket.send(serializeChatSocketMessage({ type: 'hello' }))
-    },
-    onDisconnected() {
-      socketConnected.value = false
-      stopPing()
-    },
-    onMessage(_socketInstance, event) {
-      if (typeof event.data !== 'string') {
-        return
-      }
-
-      const parsed = parseChatSocketMessage(event.data)
-      if (!parsed) {
-        return
-      }
-
-      applySocketMessage(parsed)
-    },
-    onError() {
-      errorMessage.value = 'Kết nối realtime đang gặp sự cố.'
-    },
-  })
 
   const currentRoomId = computed(() => {
     const value = route.query.room
@@ -222,7 +157,6 @@ export function useChatOnlineRoom() {
     if (!activeRoom.value) {
       return 'Chưa có room'
     }
-
     const diffMs = Math.max(activeRoom.value.expiresAt - now.value.getTime(), 0)
     const hours = Math.floor(diffMs / (60 * 60 * 1000))
     const minutes = Math.floor((diffMs % (60 * 60 * 1000)) / (60 * 1000))
@@ -234,7 +168,6 @@ export function useChatOnlineRoom() {
     if (!keyword) {
       return yahooEmoticons.value
     }
-
     return yahooEmoticons.value.filter((item) => {
       return (
         item.title.toLowerCase().includes(keyword) ||
@@ -248,54 +181,52 @@ export function useChatOnlineRoom() {
     if (!import.meta.env.DEV) {
       return ''
     }
-
-    const { hostname, port } = window.location
-    const isLocal = hostname === '127.0.0.1' || hostname === 'localhost'
-    if (isLocal && port !== '8787' && port !== '5173' && port !== '5174') {
-      return 'Chat realtime cần chạy qua `pnpm dev` hoặc `pnpm dev:worker`.'
-    }
-
-    return ''
+    return 'Chạy `pnpm dev` để dùng app + realtime server cùng lúc.'
   })
 
   const activeAvatarPreset = computed(() => profile.value.avatarPreset)
   const avatarImageDataUrl = computed(() => profile.value.avatarImageDataUrl)
 
-  const sendTypingSignal = useDebounceFn(() => {
-    if (!socketConnected.value) {
-      return
-    }
-    socket.send(serializeChatSocketMessage({ type: 'typing' }))
-  }, 350, { maxWait: 1500 })
+  const sendTypingSignal = useDebounceFn(
+    () => {
+      if (!socketRef.value) {
+        return
+      }
+      sendChatEvent({ type: 'typing' })
+    },
+    350,
+    { maxWait: 1500 },
+  )
 
-  const { pause: stopPing, resume: startPing } = useIntervalFn(() => {
-    if (!socketConnected.value) {
+  function sendChatEvent(message: ChatSocketClientMessage) {
+    if (!socketRef.value) {
       return
     }
-    socket.send(serializeChatSocketMessage({ type: 'ping', clientTime: Date.now() }))
-  }, 20000, { immediate: false })
+    sendChatSocketMessage(socketRef.value, message)
+  }
 
   function setRoomQuery(roomId: string) {
     const query = { ...route.query }
-
     if (roomId) {
       query.room = roomId
     } else {
       delete query.room
     }
-
     router.replace({ query })
   }
 
   function resetRealtimeState() {
-    stopPing()
-    socket.close()
+    socketRef.value?.disconnect()
+    socketRef.value = null
     socketConnected.value = false
-    socketPath.value = ''
   }
 
   function setProfileDraftName(value: string) {
     displayNameDraft.value = value
+    profile.value = {
+      ...profile.value,
+      displayName: value,
+    }
   }
 
   function setAvatarPreset(avatarPreset: string) {
@@ -344,7 +275,6 @@ export function useChatOnlineRoom() {
   }
 
   function buildIdentity(
-    roomId: string,
     participantId: string,
     sessionId: string,
     displayName: string,
@@ -358,92 +288,10 @@ export function useChatOnlineRoom() {
     }
   }
 
-  function storeIdentity(roomId: string, identity: StoredChatRoomIdentity) {
-    profile.value = {
-      ...profile.value,
-      rooms: {
-        ...profile.value.rooms,
-        [roomId]: identity,
-      },
-    }
-    activeIdentity.value = identity
-  }
-
-  function upsertParticipant(participant: ChatParticipant) {
-    const room = activeRoom.value
-    if (!room) {
-      return
-    }
-
-    const existingIndex = room.participants.findIndex(
-      (entry) => entry.participantId === participant.participantId,
-    )
-
-    if (existingIndex === -1) {
-      activeRoom.value = {
-        ...room,
-        participants: [...room.participants, participant],
-      }
-      return
-    }
-
-    const nextParticipants = [...room.participants]
-    nextParticipants[existingIndex] = participant
-    activeRoom.value = {
-      ...room,
-      participants: nextParticipants,
-    }
-  }
-
-  function upsertSavedRoom(roomRecord: ChatRoomRecord, identity: StoredChatRoomIdentity | null) {
-    if (!identity) {
-      return
-    }
-
-    const role = roomRecord.hostParticipantId === identity.participantId ? 'host' : 'member'
-    const nextEntry: StoredChatSavedRoom = {
-      roomId: roomRecord.roomId,
-      roomName: roomRecord.roomName,
-      participantId: identity.participantId,
-      sessionId: identity.sessionId,
-      displayName: identity.displayName,
-      avatarPreset: identity.avatarPreset,
-      role,
-      lastVisitedAt: Date.now(),
-    }
-
-    const next = savedRooms.value.filter((item) => item.roomId !== roomRecord.roomId)
-    savedRooms.value = [nextEntry, ...next].slice(0, 24)
-  }
-
-  function removeSavedRoom(roomId: string) {
-    savedRooms.value = savedRooms.value.filter((item) => item.roomId !== roomId)
-  }
-
-  function findSavedIdentity(roomId: string): StoredChatRoomIdentity | null {
-    const storedIdentity = profile.value.rooms[roomId]
-    if (storedIdentity) {
-      return storedIdentity
-    }
-
-    const saved = savedRooms.value.find((item) => item.roomId === roomId)
-    if (!saved) {
-      return null
-    }
-
-    return {
-      participantId: saved.participantId,
-      sessionId: saved.sessionId,
-      displayName: saved.displayName,
-      avatarPreset: saved.avatarPreset,
-    }
-  }
-
   function applySocketMessage(message: ChatSocketServerMessage) {
     if (message.type === 'initial_state') {
       activeRoom.value = message.room
       roomPreview.value = message.room
-      upsertSavedRoom(message.room, activeIdentity.value)
       return
     }
 
@@ -452,7 +300,16 @@ export function useChatOnlineRoom() {
     }
 
     if (message.type === 'participant_joined') {
-      upsertParticipant(message.participant)
+      const next = [...activeRoom.value.participants]
+      const index = next.findIndex(
+        (participant) => participant.participantId === message.participant.participantId,
+      )
+      if (index === -1) {
+        next.push(message.participant)
+      } else {
+        next[index] = message.participant
+      }
+      activeRoom.value = { ...activeRoom.value, participants: next }
       return
     }
 
@@ -498,16 +355,54 @@ export function useChatOnlineRoom() {
     }
 
     if (message.type === 'room_expiring') {
-      if (activeRoom.value) {
-        removeSavedRoom(activeRoom.value.roomId)
-      }
       errorMessage.value = 'Room này đã hết hạn và sẽ đóng.'
+      leaveRoom()
       return
     }
 
     if (message.type === 'action_rejected') {
       errorMessage.value = message.reason
     }
+  }
+
+  function bindSocket(roomId: string, identity: StoredChatRoomIdentity) {
+    resetRealtimeState()
+    const socket = connectChatSocket(roomId, identity)
+    socketRef.value = socket
+
+    socket.on('connect', () => {
+      socketConnected.value = true
+      errorMessage.value = ''
+      sendChatEvent({ type: 'hello' })
+    })
+
+    socket.on('disconnect', () => {
+      socketConnected.value = false
+    })
+
+    socket.on('connect_error', () => {
+      socketConnected.value = false
+      errorMessage.value = 'Kết nối realtime đang gặp sự cố.'
+    })
+
+    onChatSocketMessage(socket, applySocketMessage)
+  }
+
+  function mergeDiscoveries(items: ChatDiscoveryItem[], append: boolean) {
+    if (!append) {
+      return items
+    }
+    const next = [...discoveries.value]
+    const seen = new Set(next.map((item) => `${item.mediaKind}:${item.id}`))
+    for (const item of items) {
+      const key = `${item.mediaKind}:${item.id}`
+      if (seen.has(key)) {
+        continue
+      }
+      seen.add(key)
+      next.push(item)
+    }
+    return next
   }
 
   async function loadDiscoveries(kind = discoveryKind.value, append = false) {
@@ -545,7 +440,6 @@ export function useChatOnlineRoom() {
     }
 
     isLoadingYahoo.value = true
-
     try {
       yahooEmoticons.value = await getYahooEmoticons()
     } catch (error) {
@@ -561,45 +455,16 @@ export function useChatOnlineRoom() {
       roomPreview.value = response.room
     } catch (error) {
       roomPreview.value = null
-      removeSavedRoom(roomId)
       errorMessage.value = getErrorMessage(error instanceof Error ? error : String(error))
     }
   }
 
-  async function syncSavedRooms() {
-    if (isSyncingSavedRooms.value || !savedRooms.value.length) {
-      return
-    }
-
-    isSyncingSavedRooms.value = true
-
-    try {
-      const nextRooms: StoredChatSavedRoom[] = []
-
-      for (const item of savedRooms.value) {
-        try {
-          const response = await getChatRoom(item.roomId)
-          nextRooms.push({
-            ...item,
-            roomName: response.room.roomName,
-          })
-        } catch {
-          // Drop expired or deleted rooms.
-        }
-      }
-
-      savedRooms.value = nextRooms
-    } finally {
-      isSyncingSavedRooms.value = false
-    }
+  function syncSavedRooms() {
+    savedRooms.value = []
   }
 
-  function getDraftDisplayName(): string {
-    return displayNameDraft.value.trim()
-  }
-
-  function requireDisplayName(): string | null {
-    const displayName = getDraftDisplayName()
+  function requireDisplayName() {
+    const displayName = displayNameDraft.value.trim()
     if (!displayName) {
       errorMessage.value = 'Nhập tên người dùng trước đã.'
       return null
@@ -607,15 +472,9 @@ export function useChatOnlineRoom() {
     return displayName
   }
 
-  async function connectToRoom(
-    roomId: string,
-    identityOverride: StoredChatRoomIdentity | null = null,
-  ) {
-    const savedIdentity = identityOverride ?? findSavedIdentity(roomId)
-    const displayName = savedIdentity?.displayName ?? getDraftDisplayName()
-
+  async function connectToRoom(roomId: string) {
+    const displayName = requireDisplayName()
     if (!displayName) {
-      errorMessage.value = 'Nhập tên người dùng trước khi vào phòng.'
       return
     }
 
@@ -625,9 +484,9 @@ export function useChatOnlineRoom() {
     try {
       const response = await joinChatRoom(roomId, {
         displayName,
-        participantId: savedIdentity?.participantId ?? '',
-        sessionId: savedIdentity?.sessionId ?? profile.value.globalSessionId,
-        avatarPreset: savedIdentity?.avatarPreset ?? activeAvatarPreset.value ?? null,
+        participantId: activeIdentity.value?.participantId ?? '',
+        sessionId: activeIdentity.value?.sessionId ?? profile.value.globalSessionId,
+        avatarPreset: activeAvatarPreset.value ?? null,
       })
 
       if (!response.participant) {
@@ -635,21 +494,16 @@ export function useChatOnlineRoom() {
       }
 
       const identity = buildIdentity(
-        roomId,
         response.participant.participantId,
         response.participant.sessionId,
         response.participant.displayName,
         response.participant.avatarPreset,
       )
 
-      storeIdentity(roomId, identity)
+      activeIdentity.value = identity
       activeRoom.value = response.room
       roomPreview.value = response.room
-      upsertSavedRoom(response.room, identity)
-      lastJoinedRoomId.value = roomId
-      resetRealtimeState()
-      socketPath.value = toChatWebSocketUrl(response.websocketUrl)
-      socket.open()
+      bindSocket(roomId, identity)
     } catch (error) {
       errorMessage.value = getErrorMessage(error instanceof Error ? error : String(error))
     } finally {
@@ -663,7 +517,6 @@ export function useChatOnlineRoom() {
     if (!displayName) {
       return
     }
-
     if (!roomName) {
       errorMessage.value = 'Nhập tên phòng trước khi tạo.'
       return
@@ -680,18 +533,18 @@ export function useChatOnlineRoom() {
       })
 
       const identity = buildIdentity(
-        response.roomId,
         response.host.participantId,
         response.host.sessionId,
         response.host.displayName,
         response.host.avatarPreset,
       )
 
-      storeIdentity(response.roomId, identity)
-      upsertSavedRoom(response.room, identity)
       inviteCodeDraft.value = response.roomId
+      activeIdentity.value = identity
+      activeRoom.value = response.room
+      roomPreview.value = response.room
       setRoomQuery(response.roomId)
-      await connectToRoom(response.roomId, identity)
+      bindSocket(response.roomId, identity)
     } catch (error) {
       errorMessage.value = getErrorMessage(error instanceof Error ? error : String(error))
     } finally {
@@ -705,24 +558,14 @@ export function useChatOnlineRoom() {
       errorMessage.value = 'Nhập mã phòng hoặc mở link mời.'
       return
     }
-
-    if (!requireDisplayName()) {
-      return
-    }
-
     if (currentRoomId.value !== roomId) {
       setRoomQuery(roomId)
     }
-
     await connectToRoom(roomId)
   }
 
   async function openSavedRoom(roomId: string) {
     inviteCodeDraft.value = roomId
-    if (currentRoomId.value !== roomId) {
-      setRoomQuery(roomId)
-    }
-
     await connectToRoom(roomId)
   }
 
@@ -736,14 +579,13 @@ export function useChatOnlineRoom() {
       try {
         await leaveChatRoom(roomId, { participantId: identity.participantId })
       } catch {
-        // Ignore leave failures during teardown.
+        // ignore
       }
     }
 
     activeRoom.value = null
     activeIdentity.value = null
     roomPreview.value = null
-    lastJoinedRoomId.value = ''
     composerPanel.value = 'none'
     messageDraft.value = ''
     setRoomQuery('')
@@ -754,14 +596,11 @@ export function useChatOnlineRoom() {
     if (!text || !socketConnected.value) {
       return
     }
-
-    socket.send(
-      serializeChatSocketMessage({
-        type: 'send_message',
-        kind: 'text',
-        text,
-      }),
-    )
+    sendChatEvent({
+      type: 'send_message',
+      kind: 'text',
+      text,
+    })
     messageDraft.value = ''
   }
 
@@ -769,14 +608,11 @@ export function useChatOnlineRoom() {
     if (!socketConnected.value) {
       return
     }
-
-    socket.send(
-      serializeChatSocketMessage({
-        type: 'send_message',
-        kind: 'icon',
-        icon: buildAttachment(item.id, item.title, item.imageUrl, 'gif', null, item.imageUrl),
-      }),
-    )
+    sendChatEvent({
+      type: 'send_message',
+      kind: 'icon',
+      icon: buildAttachment(item.id, item.title, item.imageUrl, 'gif', null, item.imageUrl),
+    })
     composerPanel.value = 'none'
   }
 
@@ -784,21 +620,18 @@ export function useChatOnlineRoom() {
     if (!socketConnected.value) {
       return
     }
-
-    socket.send(
-      serializeChatSocketMessage({
-        type: 'send_message',
-        kind: 'meme',
-        meme: buildAttachment(
-          item.id,
-          item.title,
-          item.imageUrl,
-          item.mediaKind,
-          item.pageUrl,
-          item.mediaKind === 'video' ? null : item.imageUrl,
-        ),
-      }),
-    )
+    sendChatEvent({
+      type: 'send_message',
+      kind: 'meme',
+      meme: buildAttachment(
+        item.id,
+        item.title,
+        item.imageUrl,
+        item.mediaKind,
+        item.pageUrl,
+        item.mediaKind === 'video' ? null : item.imageUrl,
+      ),
+    })
     composerPanel.value = 'none'
   }
 
@@ -817,12 +650,10 @@ export function useChatOnlineRoom() {
 
   async function openComposerPanel(panel: ComposerPanel) {
     composerPanel.value = composerPanel.value === panel ? 'none' : panel
-
     if (composerPanel.value === 'yahoo') {
       await loadYahooList()
       return
     }
-
     if (composerPanel.value === 'discoveries' && !discoveries.value.length) {
       await loadDiscoveries()
     }
@@ -832,30 +663,16 @@ export function useChatOnlineRoom() {
     currentRoomId,
     async (roomId) => {
       if (!roomId) {
-        activeRoom.value = null
-        activeIdentity.value = null
         roomPreview.value = null
-        resetRealtimeState()
         return
       }
-
       inviteCodeDraft.value = roomId
-      activeIdentity.value = findSavedIdentity(roomId)
-      composerPanel.value = 'none'
-
-      if (activeIdentity.value && roomId !== lastJoinedRoomId.value && !isBusy.value) {
-        await connectToRoom(roomId, activeIdentity.value)
-        return
-      }
-
-      if (!activeIdentity.value) {
+      if (!activeRoom.value || activeRoom.value.roomId !== roomId) {
         await refreshRoomPreview(roomId)
       }
     },
     { immediate: true },
   )
-
-  syncSavedRooms()
 
   onBeforeUnmount(() => {
     resetRealtimeState()

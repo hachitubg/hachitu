@@ -17,13 +17,12 @@ export const homepageTechItems: HomepageTechItem[] = [
   },
   {
     title: 'Backend & API',
-    value:
-      'Cloudflare Workers, OpenRouter AI Gateway, Durable Objects, WebSocket',
+    value: 'Node.js, Socket.IO, OpenRouter API',
     tone: 'sky',
   },
   {
-    title: 'Database',
-    value: 'SQLite-backed storage trong Durable Objects',
+    title: 'Realtime State',
+    value: 'Room state trong memory, không dùng database mặc định',
     tone: 'amber',
   },
 ]

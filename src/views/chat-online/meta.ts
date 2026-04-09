@@ -6,7 +6,7 @@ const meta: PageMeta = {
     'Room chat realtime cho bạn bè với link mời, nickname tạm, icon message và meme/GIF để cuộc trò chuyện sinh động hơn.',
   author: 'HACHITU',
   category: 'connect',
-  hidden: true,
+  hidden: false,
 }
 
 export default meta

@@ -1,23 +1,33 @@
-import type { ChatSocketClientMessage, ChatSocketServerMessage } from './types'
+import { io } from 'socket.io-client'
+import type {
+  ChatSocketClientMessage,
+  ChatSocketServerMessage,
+  StoredChatRoomIdentity,
+} from './types'
 
-export function toChatWebSocketUrl(pathname: string): string {
-  const url = new URL(pathname, window.location.origin)
-  url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
-  return url.toString()
+export type ChatSocket = ReturnType<typeof io>
+
+export function connectChatSocket(roomId: string, identity: StoredChatRoomIdentity): ChatSocket {
+  return io(window.location.origin, {
+    path: '/socket.io',
+    transports: ['websocket'],
+    query: {
+      roomId,
+      participantId: identity.participantId,
+      sessionId: identity.sessionId,
+      displayName: identity.displayName,
+      avatarPreset: identity.avatarPreset ?? '',
+    },
+  })
 }
 
-export function serializeChatSocketMessage(message: ChatSocketClientMessage): string {
-  return JSON.stringify(message)
+export function sendChatSocketMessage(socket: ChatSocket, message: ChatSocketClientMessage) {
+  socket.emit('chat:client', message)
 }
 
-export function parseChatSocketMessage(raw: string): ChatSocketServerMessage | null {
-  try {
-    const parsed = JSON.parse(raw) as Partial<ChatSocketServerMessage>
-    if (typeof parsed.type !== 'string') {
-      return null
-    }
-    return parsed as ChatSocketServerMessage
-  } catch {
-    return null
-  }
+export function onChatSocketMessage(
+  socket: ChatSocket,
+  handler: (message: ChatSocketServerMessage) => void,
+) {
+  socket.on('chat:event', handler)
 }

@@ -1,121 +1,143 @@
 # HACHITU Deployment
 
-Tài liệu này chuẩn bị sẵn cho 2 việc:
-
-- đưa source code lên Git
-- deploy frontend lên VPS
+Tài liệu này chốt hướng deploy khuyến nghị cho `HACHITU`.
 
 ## Kết luận ngắn
 
-`HACHITU` hiện không phải một app Node backend thuần để bê nguyên lên VPS rồi chạy hết mọi thứ.
+`HACHITU` nên deploy theo hướng:
 
-Kiến trúc hiện tại là:
+- frontend build ra `dist/`
+- `nginx` serve static files
+- nếu cần realtime thì chạy thêm một process `Node.js + Socket.IO`
+- nếu cần AI thì backend nội bộ giữ secret và expose `/api/ai/*`
 
-- frontend SPA build ra `dist/`
-- backend realtime ở `worker/`
-- chat realtime đang dùng `Cloudflare Worker + Durable Objects + WebSocket`
+## Kiến trúc deploy khuyến nghị
 
-Vì vậy, phương án thực tế và ít rủi ro nhất là:
+```text
+Browser
+  -> https://hachitu.io.vn
 
-1. frontend static chạy trên VPS qua `nginx`
-2. backend realtime tiếp tục chạy trên Cloudflare
-3. VPS reverse proxy `/api/*` về Worker domain hoặc custom domain của Worker
+Nginx
+  -> serve dist/
+  -> proxy /api/* -> Node backend
+  -> proxy /socket.io/* -> Node backend
 
-Cách này giữ nguyên tính năng `chat-online` mà không cần rewrite backend.
+Node.js
+  -> API nội bộ
+  -> Socket.IO realtime
+  -> room state trong memory
+```
 
-## Những gì đã được chuẩn bị trong repo
+## Vì sao hướng này phù hợp
 
-- GitHub CI: [ci.yml](/D:/Project/vibe.j2team.org/HACHITU/.github/workflows/ci.yml)
-- mẫu cấu hình nginx: [hachitu.conf.example](/D:/Project/vibe.j2team.org/HACHITU/deploy/nginx/hachitu.conf.example)
-- `.gitignore` đã bỏ qua `.wrangler/` và log local
+- dễ deploy trên VPS
+- không phụ thuộc runtime phức tạp
+- dễ debug
+- hợp với project cá nhân
+- không cần database nếu app chỉ cần realtime room
 
-## Luồng deploy khuyến nghị
+## Những gì nên có trên VPS
 
-### 1. Git
+- `nginx`
+- `node`
+- `pnpm`
+- `pm2` hoặc `systemd`
+- `certbot` nếu làm SSL trực tiếp trên VPS
 
-- tạo repo GitHub mới cho `HACHITU`
-- push toàn bộ thư mục `HACHITU` như một repo riêng
-- bật GitHub Actions
+## Cấu trúc thư mục gợi ý
 
-CI hiện sẽ tự chạy khi:
+```text
+/var/www/hachitu/
+  dist/
+  server/
+  package.json
+```
 
-- push lên `main`
-- push lên `develop`
-- push lên `feature/**`
-- mở Pull Request vào `main`
+## Chạy local
 
-CI sẽ chạy:
+### Frontend + realtime server
 
-- `pnpm install --frozen-lockfile`
-- `pnpm lint:ci`
-- `pnpm build`
+```sh
+pnpm install
+pnpm dev
+```
 
-### 2. Cloudflare backend
+`pnpm dev` hiện chạy:
 
-Giữ Worker backend cho:
+- `vite`
+- `node server/index.mjs`
 
-- `/api/chat/*`
-- `/api/apps/chat-online/*`
-- WebSocket room của chat
-- Durable Objects / room state
+### Chế độ tương thích đầy đủ
 
-Frontend hiện đang gọi API theo same-origin:
+```sh
+pnpm dev:full
+```
 
-- `/api/chat/rooms`
-- `/api/apps/chat-online/discoveries`
+Chỉ dùng khi bạn còn cần chế độ mở rộng cũ cho vài route đặc biệt trong lúc chuyển đổi.
 
-Và WebSocket URL cũng được build từ origin hiện tại ở frontend. Do đó khi lên VPS, `nginx` phải proxy `/api/*` về backend Worker để giao diện không phải sửa code.
+## Luồng deploy
 
-### 3. VPS frontend
+### 1. Build frontend
 
-Trên VPS chỉ cần:
+```sh
+pnpm install
+pnpm build
+```
 
-- clone hoặc pull repo
-- `pnpm install --frozen-lockfile`
-- `pnpm build`
-- dùng `nginx` serve thư mục `dist/`
+Sau đó upload `dist/` lên VPS và để `nginx` serve.
 
-Config mẫu đã có tại:
+### 2. Chạy backend realtime/API
 
-- [hachitu.conf.example](/D:/Project/vibe.j2team.org/HACHITU/deploy/nginx/hachitu.conf.example)
+Nếu đã có `server/`:
 
-## Điều chưa nên làm lúc này
+```sh
+node server/index.mjs
+```
 
-Không nên cố deploy toàn bộ `worker/` lên VPS như một app Node bình thường, vì:
+Nên chạy bằng:
 
-- Durable Objects là runtime đặc thù của Cloudflare
-- WebSocket flow hiện đang phụ thuộc Worker route hiện tại
-- muốn chạy full trên VPS sẽ phải viết lại backend realtime
+- `pm2`
+- hoặc `systemd`
 
-Nếu sau này bạn muốn bỏ Cloudflare hoàn toàn, ta nên tách bước đó thành một task riêng:
+### 3. Nginx
 
-- rewrite `worker/` sang `Node + Fastify/Hono + WebSocket`
-- thay Durable Objects bằng `SQLite/Postgres/Redis`
+Frontend:
 
-## Thông tin tôi sẽ cần khi bạn sẵn sàng gửi VPS
+- `root /var/www/hachitu/dist`
+- `try_files $uri $uri/ /index.html`
 
-- IP hoặc domain VPS
-- hệ điều hành VPS
-- user SSH
-- SSH port
-- đường dẫn deploy mong muốn, ví dụ `/var/www/hachitu`
-- bạn muốn frontend domain là gì, ví dụ `hachitu.example.com`
-- backend Worker sẽ dùng domain nào
-- bạn muốn SSL bằng `certbot`, `Cloudflare proxy`, hay đã có sẵn
+Backend:
 
-## Checklist trước khi deploy thật
+- proxy `/api/*`
+- proxy `/socket.io/*`
 
-- đổi [constants.ts](/D:/Project/vibe.j2team.org/HACHITU/src/data/constants.ts) sang repo URL thật
-- xác nhận domain production thật trong metadata nếu bạn muốn tôi sửa tiếp
-- tạo repo GitHub thật cho `HACHITU`
-- tạo Worker production domain hoặc custom domain cho backend
-- chuẩn bị SSH access cho VPS
+## Khi nào mới thêm database
 
-## Khi bạn gửi VPS info
+Chỉ thêm database khi cần:
 
-Tôi có thể làm tiếp ngay các phần sau:
+- tài khoản
+- leaderboard
+- lịch sử dài hạn
+- analytics
+- phục hồi room sau restart
 
-1. chỉnh sẵn `nginx` config theo domain/IP thật
-2. chuẩn bị lệnh deploy cụ thể cho Ubuntu/Debian
-3. thêm script `pull + build + reload nginx`
-4. nếu cần, thêm GitHub Actions deploy tự động lên VPS qua SSH
+Nếu chưa cần các thứ đó, giữ backend ở mức:
+
+- room state trong memory
+- cleanup theo `lastActiveAt`
+
+## SSL
+
+Nếu domain trỏ trực tiếp về VPS:
+
+```sh
+certbot --nginx -d hachitu.io.vn -d www.hachitu.io.vn
+```
+
+## Checklist deploy
+
+- domain trỏ đúng về VPS
+- `nginx -t` pass
+- frontend `dist/` đã được upload
+- backend process đang chạy nếu app cần realtime hoặc API
+- HTTPS trả về `200`

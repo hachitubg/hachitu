@@ -1,35 +1,22 @@
 # HACHITU App API Guidelines
 
-Tài liệu này mô tả cách thiết kế API cho từng mini-app trong `HACHITU` để repo vẫn gọn, dễ mở rộng, và không biến thành một mớ `api.ts` dùng chung cho mọi thứ.
+Tài liệu này mô tả cách thiết kế API cho từng mini-app trong `HACHITU` để repo vẫn gọn, dễ mở rộng và không biến thành một file `api.ts` khổng lồ dùng chung cho mọi thứ.
 
 ## Nguyên tắc chốt
 
-**Không đặt tất cả API vào một file global.**
-
-Thay vào đó:
-
-- API nào chỉ phục vụ một app thì để ownership ở chính app đó
-- Hạ tầng dùng chung cho nhiều app thì đặt ở shared worker layer
-- Frontend client nên nằm gần `src/views/<app>/`
-- Backend route và business logic không đặt trong `src/views/`
+- frontend client của app nằm gần app đó
+- backend route của app nằm ở `server/`
+- realtime dùng shared layer `Socket.IO`
+- không mặc định dùng database
 
 Nói ngắn gọn:
 
 - `src/views/<app>/api/` = code gọi API từ frontend
-- `worker/apps/<app>/` = code xử lý API của app ở backend
+- `server/apps/<app>/` = backend logic của app
 
-## Quy tắc quyết định
+## Khi nào chỉ cần frontend client local
 
-### Trường hợp 1: Chỉ gọi public API bên ngoài, không cần giấu secret
-
-Ví dụ:
-
-- trivia API
-- dictionary API
-- weather API public
-- random quote API
-
-Bạn có thể gọi trực tiếp từ app:
+Nếu app chỉ gọi public API và không có secret:
 
 ```text
 src/views/my-app/
@@ -40,23 +27,22 @@ src/views/my-app/
     types.ts
 ```
 
-Hướng này phù hợp khi:
+Phù hợp khi:
 
 - không có API key
-- CORS hoạt động bình thường
-- dữ liệu chỉ phục vụ đúng app đó
-- không cần normalize phức tạp
+- CORS ổn
+- không cần backend trung gian
 
-### Trường hợp 2: Cần giấu API key hoặc chuẩn hóa dữ liệu
+## Khi nào nên đi qua backend `server/`
 
-Ví dụ:
+Nên đi qua backend khi:
 
-- gọi API bên thứ ba cần secret
-- muốn đổi nhiều provider mà không sửa frontend
-- muốn cache/rate-limit ở server
-- muốn hợp nhất nhiều nguồn dữ liệu thành một response ổn định
+- cần giữ secret
+- muốn chuẩn hóa dữ liệu
+- muốn gom nhiều provider thành một endpoint nội bộ
+- muốn thêm rate-limit hoặc cache
 
-Lúc này nên đi qua Worker:
+Cấu trúc khuyến nghị:
 
 ```text
 src/views/my-app/
@@ -64,291 +50,121 @@ src/views/my-app/
     client.ts
     types.ts
 
-worker/
+server/
   routes/
     apps/
       my-app.ts
   apps/
     my-app/
       service.ts
-      schema.ts
+      handlers.ts
       types.ts
 ```
 
-Frontend chỉ biết gọi endpoint nội bộ như:
+## Khi nào dùng realtime
 
-- `GET /api/apps/my-app/...`
-- `POST /api/apps/my-app/...`
-
-### Trường hợp 3: Game realtime hoặc collaborative app
-
-Nếu app có:
+Nên dùng `Socket.IO` nếu app cần:
 
 - room
-- lượt chơi
 - presence
-- sync trạng thái
-- reconnect
+- đồng bộ state
+- typing
+- game theo lượt
+- chat realtime
 
-thì không nên tự dựng một WebSocket stack mới trong từng app.
+Không nên dùng realtime nếu chỉ:
 
-Thay vào đó:
+- submit form
+- đọc dữ liệu một lần
+- polling chậm là đủ
 
-- dùng shared realtime primitives trong `worker/multiplayer/`
-- để game rules và state machine của app trong `worker/apps/<app>/`
-- frontend app có `api/ws.ts` hoặc `api/realtime.ts` để quản lý kết nối
+## Realtime nên tổ chức thế nào
 
-## Cấu trúc đề xuất
-
-### Frontend app-local
-
-```text
-src/views/<app>/
-  index.vue
-  meta.ts
-  components/
-  composables/
-  api/
-    client.ts
-    ws.ts
-    types.ts
-    mappers.ts
-```
-
-Giải thích:
-
-- `client.ts`: HTTP calls của app
-- `ws.ts`: kết nối WebSocket hoặc helper subscribe
-- `types.ts`: request/response types dùng ở frontend
-- `mappers.ts`: chuyển DTO từ backend thành view model nếu cần
-
-### Backend app-local
-
-```text
-worker/
-  index.ts
-  routes/
-    rooms.ts
-    apps/
-      <app>.ts
-  apps/
-    <app>/
-      handlers.ts
-      service.ts
-      schema.ts
-      types.ts
-      game-logic.ts
-```
-
-Giải thích:
-
-- `routes/apps/<app>.ts`: parse request, route tới handler
-- `handlers.ts`: orchestration theo từng endpoint
-- `service.ts`: business logic, tích hợp provider ngoài
-- `schema.ts`: validate input/output
-- `types.ts`: domain types của app
-- `game-logic.ts`: state machine/game rules nếu là game
-
-## Một số rule thực dụng
-
-### 1. Không tạo `src/api/mega-client.ts`
-
-Một file client chung cho mọi app sẽ nhanh chóng thành chỗ khó đọc và khó refactor.
+Không nên rải `new WebSocket(...)` hoặc `io(...)` ở nhiều component.
 
 Tốt hơn:
 
-- app nào có API thì tự có `api/client.ts`
-- phần shared thì tách ra `src/composables/shared/` hoặc `src/utils/shared/`
-
-### 2. Không nhét backend handler vào `src/views/`
-
-`src/views/` là frontend feature boundary, không phải chỗ để cất route handler.
-
-Chỉ nên để:
-
-- UI
-- composables
-- frontend API client
-- local types
-
-### 3. Shared chỉ khi đã thực sự shared
-
-Chỉ đẩy code lên shared layer khi:
-
-- dùng bởi từ 3 app trở lên
-- hoặc nó là hạ tầng nền như auth, rooms, presence, uploads, cache, rate limit
-
-Nếu mới chỉ có 1 app dùng, cứ giữ ownership ở app đó.
-
-### 4. API contract phải nhỏ và rõ
-
-Nên dùng DTO đơn giản:
-
-- `CreateRoomRequest`
-- `CreateRoomResponse`
-- `SubmitMoveRequest`
-- `RoomSnapshotResponse`
-
-Không trả nguyên state nội bộ nếu frontend không cần.
-
-### 5. Validation nằm ở backend
-
-Frontend có thể validate để UX tốt hơn, nhưng backend mới là nơi chốt:
-
-- input shape
-- quyền thao tác
-- trạng thái room
-- giới hạn người chơi
-- anti-spam cơ bản
-
-## WebSocket nên thiết kế thế nào
-
-### Frontend
-
-Trong app cần realtime, tạo file local:
-
 ```text
-src/views/<app>/api/ws.ts
-```
-
-File này nên lo:
-
-- mở kết nối
-- parse envelope
-- gửi message typed
-- reconnect nhẹ nếu phù hợp
-- expose callback hoặc composable cho UI
-
-Không nên rải `new WebSocket(...)` ở nhiều component khác nhau.
-
-### Backend
-
-WebSocket nên được chia làm 2 lớp:
-
-- shared realtime transport ở `worker/multiplayer/`
-- app-specific logic ở `worker/apps/<app>/`
-
-Ví dụ:
-
-- `worker/multiplayer/protocol.ts`: envelope, message types chung
-- `worker/multiplayer/validators.ts`: validate payload chung
-- `worker/apps/caro/game-logic.ts`: luật chơi caro
-- `worker/apps/caro/types.ts`: move, board, phase
-
-### Khi nào dùng WebSocket
-
-Nên dùng khi app cần:
-
-- đồng bộ room theo thời gian thực
-- player presence
-- turn update nhanh
-- countdown
-- spectator view
-
-Không nên dùng WebSocket nếu chỉ cần:
-
-- gọi một API lấy dữ liệu
-- submit form
-- poll theo chu kỳ dài
-
-## Luồng thiết kế khuyến nghị khi tạo app mới
-
-### App chỉ có frontend + public API
-
-```text
-src/views/quiz-fun/
-  index.vue
-  meta.ts
-  api/
-    client.ts
-    types.ts
-```
-
-### App có backend HTTP riêng
-
-```text
-src/views/word-battle/
-  index.vue
-  meta.ts
-  api/
-    client.ts
-    types.ts
-
-worker/
-  routes/
-    apps/
-      word-battle.ts
-  apps/
-    word-battle/
-      handlers.ts
-      service.ts
-      schema.ts
-      types.ts
-```
-
-### App có room realtime
-
-```text
-src/views/caro-online/
-  index.vue
-  meta.ts
+src/views/<app>/
   api/
     client.ts
     ws.ts
     types.ts
 
-worker/
-  routes/
-    apps/
-      caro-online.ts
-    rooms.ts
-  apps/
-    caro-online/
-      game-logic.ts
-      handlers.ts
-      schema.ts
-      types.ts
-  durable-objects/
-    game-room.ts
-  multiplayer/
+server/
+  realtime/
+    socket.ts
     protocol.ts
-    ttl.ts
-    validators.ts
+    room-registry.ts
 ```
 
-## Nên dùng file nào cho loại logic nào
+Trong đó:
 
-- UI fetch đơn giản của riêng app: `src/views/<app>/api/client.ts`
-- Type request/response riêng app: `src/views/<app>/api/types.ts`
-- WebSocket client riêng app: `src/views/<app>/api/ws.ts`
-- Route HTTP nội bộ: `worker/routes/apps/<app>.ts`
-- Business logic/backend integration: `worker/apps/<app>/service.ts`
-- Luật game/state machine: `worker/apps/<app>/game-logic.ts`
-- Primitives dùng lại nhiều app: `worker/multiplayer/*`
+- `client.ts`: HTTP của app
+- `ws.ts`: kết nối Socket.IO phía frontend
+- `room-registry.ts`: giữ state room trong memory
+- `protocol.ts`: thống nhất event names
 
-## Cách nghĩ đúng để repo không bị loạn
+## Cấu trúc backend khuyến nghị
 
-Đừng nghĩ theo kiểu:
+```text
+server/
+  index.mjs
+  routes/
+    ai.ts
+    apps/
+      <app>.ts
+  realtime/
+    socket.ts
+    protocol.ts
+    room-registry.ts
+    cleanup.ts
+  apps/
+    <app>/
+      service.ts
+      handlers.ts
+      types.ts
+      game-logic.ts
+```
 
-- "repo có backend thì mọi API phải đi vào một thư mục chung"
+## Rule thực dụng
 
-Hãy nghĩ theo kiểu:
+### 1. Không tạo `src/api/global-client.ts`
 
-- "mỗi app sở hữu frontend client của nó"
-- "mỗi app sở hữu backend logic của nó"
-- "shared layer chỉ chứa hạ tầng dùng lại"
+App nào có API thì tự có `api/client.ts` của app đó.
 
-Đó là cách giữ cho `HACHITU` mở rộng được từ vài mini-app sang nhiều mini-app mà không phải đại tu cấu trúc giữa chừng.
+### 2. Không nhét backend vào `src/views/`
+
+`src/views/` là frontend boundary. Backend đi vào `server/`.
+
+### 3. Chỉ tách shared khi thực sự shared
+
+Nếu mới có 1 app dùng, cứ giữ code ở app đó.
+
+Chỉ đẩy lên shared layer khi:
+
+- đã có từ 3 app dùng chung
+- hoặc nó là hạ tầng nền như AI gateway, auth, realtime transport
+
+### 4. DTO phải nhỏ và rõ
+
+Nên dùng:
+
+- `CreateRoomRequest`
+- `CreateRoomResponse`
+- `JoinRoomRequest`
+- `JoinRoomResponse`
+
+Không trả nguyên state nội bộ nếu frontend không cần.
 
 ## AI gateway dùng chung
 
-Khi app cần LLM hoặc AI API:
+Nếu app cần AI:
 
-- không gọi provider trực tiếp từ frontend
 - frontend gọi endpoint nội bộ như `/api/ai/chat`
-- Worker giữ secret và chịu trách nhiệm gọi provider
-- nếu nhiều app cùng dùng AI, shared layer nằm ở `worker/apps/ai/*`
+- backend giữ secret OpenRouter
+- nhiều app có thể dùng chung một AI gateway nhỏ trong `server/routes/ai.ts`
 
-Tài liệu chi tiết:
+Xem thêm:
 
 - `docs/HACHITU_AI_API_GUIDELINES.md`

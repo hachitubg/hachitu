@@ -40,13 +40,11 @@ const vAnimate: Directive<HTMLElement, string | undefined> = {
   },
 }
 
-const { searchQuery, activeCategory, isFiltering, filteredList, categoryCounts } = useFilteredList(
-  {
-    items: () => pagesStore.pages,
-    searchFields: ['name'],
-    categoryField: 'category',
-  },
-)
+const { searchQuery, activeCategory, isFiltering, filteredList, categoryCounts } = useFilteredList({
+  items: () => pagesStore.pages,
+  searchFields: ['name'],
+  categoryField: 'category',
+})
 
 const filteredPages = computed(() => filteredList.value)
 
@@ -173,7 +171,9 @@ useSearchShortcut(searchInputRef)
         v-if="!isFiltering"
         class="flex items-center justify-center border border-dashed border-border-default p-6 text-text-dim animate-pulse-border transition-colors duration-300 hover:border-accent-coral hover:text-accent-coral"
       >
-        <span class="text-sm font-display tracking-wide">Mini-app tiếp theo của bạn sẽ ở đây</span>
+        <span class="text-sm font-display tracking-wide"
+          >Mini-app đang được phát triển thêm...</span
+        >
       </div>
     </div>
   </main>

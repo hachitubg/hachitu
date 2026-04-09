@@ -7,38 +7,56 @@ Starter repo cho mô hình `launcher + nhiều mini-app` cá nhân, lấy cảm 
 - Vue 3.5 + TypeScript strict
 - Vite 7 + Tailwind CSS v4
 - Vue Router 5 + Pinia 3
-- Auto-routing từ `src/views/<slug>/meta.ts`
-- Build pipeline tạo `pages.json`, OG pages và sitemap
-- Homepage launcher sáng màu
-- Bookmarks + recently viewed
-- Sample page `hello-world`
+- auto-routing từ `src/views/<slug>/meta.ts`
+- build pipeline tạo `pages.json`, OG pages và sitemap
+- homepage launcher sáng màu
+- bookmarks + recently viewed
 
-## Hướng mở rộng multiplayer
+## Hướng kiến trúc hiện tại
 
-Starter này đã có tài liệu kiến trúc cho game online giữa bạn bè theo hướng:
+`HACHITU` ưu tiên mô hình đơn giản:
 
-- Cloudflare Durable Objects
-- WebSocket cho realtime room
-- SQLite-backed room storage
-- TTL cleanup theo từng room
+- frontend SPA ở `src/`
+- mini-app nằm trong `src/views/<app>/`
+- realtime dùng `Node.js + Socket.IO`
+- room state giữ trong memory
+- mặc định không dùng database nếu app chỉ cần tương tác realtime
 
-Xem chi tiết tại:
+Điều này phù hợp với:
 
-- `docs/HACHITU_MULTIPLAYER_ARCHITECTURE.md`
-- `docs/HACHITU_APP_API_GUIDELINES.md`
+- chat room cho bạn bè
+- mini game nhiều người chơi
+- tool cộng tác realtime nhẹ
 
-## Hướng mở rộng AI API
+## Vì sao không dùng database mặc định
 
-Repo đã có sẵn AI gateway qua Worker để các mini-app dùng chung một secret OpenRouter và chỉ gọi free models nếu muốn.
+Nếu mục tiêu chỉ là:
 
-Các endpoint hiện có:
+- tạo room nhanh
+- chơi hoặc chat realtime
+- room tự mất khi server restart hoặc quá lâu không dùng
 
-- `GET /api/ai/models/free`
-- `POST /api/ai/chat`
+thì database chỉ làm hệ thống nặng thêm.
 
-Xem chi tiết tại:
+Hướng khuyến nghị cho `HACHITU` là:
 
-- `docs/HACHITU_AI_API_GUIDELINES.md`
+- room state trong RAM
+- TTL cleanup theo `lastActiveAt`
+- chỉ thêm database khi thực sự cần leaderboard, tài khoản, lịch sử dài hạn
+
+## Backend và AI
+
+Với app cần AI:
+
+- frontend không gọi secret trực tiếp
+- nên có một API gateway nhỏ ở backend nội bộ
+- backend giữ `OPENROUTER_API_KEY`
+- frontend gọi endpoint nội bộ như `/api/ai/chat`
+
+Với app cần realtime:
+
+- dùng `Socket.IO` trên VPS
+- không cần hạ tầng realtime phân tán nếu chưa cần persistence
 
 ## Chạy local
 
@@ -47,28 +65,15 @@ pnpm install
 pnpm dev
 ```
 
-## Chạy phần Worker
+`pnpm dev` hiện chạy:
 
-Frontend hiện vẫn chạy bằng:
+- `vite`
+- `node server/index.mjs`
 
-```sh
-pnpm dev:app
-```
-
-Worker chạy bằng:
+Nếu bạn còn cần chế độ mở rộng cũ cho một vài route tạm thời:
 
 ```sh
-pnpm dev:worker
-```
-
-## Cấu hình AI local
-
-Tạo file `.dev.vars` cạnh `wrangler.json`:
-
-```dotenv
-OPENROUTER_API_KEY="sk-or-v1-your-key"
-OPENROUTER_SITE_URL="http://127.0.0.1:8787"
-OPENROUTER_SITE_NAME="HACHITU Local"
+pnpm dev:full
 ```
 
 ## Việc nên làm đầu tiên
@@ -93,11 +98,12 @@ pnpm create:page my-first-app
 
 ## Deploy
 
-Repo này đã được chuẩn bị sẵn phần khung cho:
+Hướng deploy khuyến nghị:
 
-- GitHub CI
-- VPS frontend qua `nginx`
-- reverse proxy `/api/*` về backend Worker
+- frontend build ra `dist/`
+- `nginx` serve static files trên VPS
+- nếu cần realtime thì chạy thêm một tiến trình `Node.js + Socket.IO`
+- nếu cần AI thì backend nội bộ giữ secret và expose API
 
 Xem chi tiết tại:
 

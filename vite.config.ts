@@ -12,6 +12,23 @@ import { generatePagesJson } from './scripts/generate-pages-json.mjs'
 export default defineConfig({
   server: {
     proxy: {
+      '/socket.io': {
+        target: 'http://127.0.0.1:3001',
+        changeOrigin: true,
+        ws: true,
+      },
+      '/api/chat': {
+        target: 'http://127.0.0.1:3001',
+        changeOrigin: true,
+      },
+      '/api/apps/chat-online': {
+        target: 'http://127.0.0.1:3001',
+        changeOrigin: true,
+      },
+      '/api/ai': {
+        target: 'http://127.0.0.1:8787',
+        changeOrigin: true,
+      },
       '/api': {
         target: 'http://127.0.0.1:8787',
         changeOrigin: true,
