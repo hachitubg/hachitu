@@ -112,6 +112,21 @@ function setSetupColor(id: string, hex: string) {
   if (p) p.color = hex
 }
 
+function selectSetupColor(id: string, hex: string) {
+  setSetupColor(id, hex)
+  colorPickerOpen.value = null
+}
+
+function closeConfigAndEndGame() {
+  showConfigSheet.value = false
+  endGame()
+}
+
+function selectNewPlayerColor(hex: string) {
+  newPlayerColor.value = hex
+  colorPickerOpen.value = null
+}
+
 const canStart = computed(() => setupPlayers.value.filter((p) => p.name.trim()).length >= 2)
 
 function startGame() {
@@ -454,10 +469,7 @@ const MEDAL = ['🥇', '🥈', '🥉']
                   borderColor: p.color === hex ? '#2f241f' : 'white',
                 }"
                 :disabled="setupPlayers.some((sp) => sp.id !== p.id && sp.color === hex)"
-                @click="
-                  setSetupColor(p.id, hex)
-                  colorPickerOpen = null
-                "
+                @click="selectSetupColor(p.id, hex)"
               />
             </div>
           </div>
@@ -1001,10 +1013,7 @@ const MEDAL = ['🥇', '🥈', '🥉']
               <div class="pt-2 border-t border-border-default">
                 <button
                   class="w-full border border-border-default py-2.5 text-sm text-text-secondary font-display hover:border-accent-coral hover:text-accent-coral transition"
-                  @click="
-                    showConfigSheet = false
-                    endGame()
-                  "
+                  @click="closeConfigAndEndGame"
                 >
                   Kết thúc phiên chơi
                 </button>
@@ -1154,10 +1163,7 @@ const MEDAL = ['🥇', '🥈', '🥉']
                       borderColor: newPlayerColor === hex ? '#2f241f' : 'white',
                     }"
                     :disabled="session.players.some((sp) => sp.color === hex)"
-                    @click="
-                      newPlayerColor = hex
-                      colorPickerOpen = null
-                    "
+                    @click="selectNewPlayerColor(hex)"
                   />
                 </div>
               </div>
