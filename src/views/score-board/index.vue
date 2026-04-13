@@ -61,7 +61,10 @@ const DEFAULT_SESSION: GameSession = {
 
 // ─── Persistent state ─────────────────────────────────────────────────────────
 
-const session = useLocalStorage<GameSession>('hachitu-score-board', structuredClone(DEFAULT_SESSION))
+const session = useLocalStorage<GameSession>(
+  'hachitu-score-board',
+  structuredClone(DEFAULT_SESSION),
+)
 
 // ─── Setup screen state ───────────────────────────────────────────────────────
 
@@ -113,7 +116,9 @@ const canStart = computed(() => setupPlayers.value.filter((p) => p.name.trim()).
 
 function startGame() {
   if (!canStart.value) return
-  const validPlayers = setupPlayers.value.filter((p) => p.name.trim()).map((p) => ({ ...p, name: p.name.trim() }))
+  const validPlayers = setupPlayers.value
+    .filter((p) => p.name.trim())
+    .map((p) => ({ ...p, name: p.name.trim() }))
   session.value = {
     name: setupName.value.trim() || 'Bảng điểm',
     players: validPlayers,
@@ -181,14 +186,15 @@ const displayPlayers = computed(() => {
   return ps
 })
 
-
 const roundSum = computed(() =>
   session.value.players.reduce((s, p) => s + (currentInputs.value[p.id] ?? 0), 0),
 )
 
 const isBalanced = computed(() => !session.value.config.balanceCheck || roundSum.value === 0)
 
-const allInputsZero = computed(() => session.value.players.every((p) => (currentInputs.value[p.id] ?? 0) === 0))
+const allInputsZero = computed(() =>
+  session.value.players.every((p) => (currentInputs.value[p.id] ?? 0) === 0),
+)
 
 const canConfirm = computed(() => isBalanced.value && !allInputsZero.value)
 
@@ -257,7 +263,11 @@ function openAddPlayer() {
 
 function addPlayerDuringGame() {
   if (!newPlayerName.value.trim() || session.value.players.length >= 10) return
-  const p: Player = { id: crypto.randomUUID(), name: newPlayerName.value.trim(), color: newPlayerColor.value }
+  const p: Player = {
+    id: crypto.randomUUID(),
+    name: newPlayerName.value.trim(),
+    color: newPlayerColor.value,
+  }
   session.value.players.push(p)
   session.value.rounds.forEach((r) => {
     r[p.id] = 0
@@ -326,12 +336,20 @@ const sizeTier = computed(() => {
   return 3
 })
 
-const nameSizeClass  = computed(() => (['text-2xl',    'text-xl',    'text-base',  'text-sm'   ])[sizeTier.value])
-const scoreSizeClass = computed(() => (['text-4xl',    'text-3xl',   'text-2xl',   'text-xl'   ])[sizeTier.value])
-const deltaSizeClass = computed(() => (['text-sm',     'text-xs',    'text-xs',    'text-[10px]'])[sizeTier.value])
-const btnSizeClass   = computed(() => (['size-10',     'size-9',     'size-8',     'size-7'    ])[sizeTier.value])
-const iconSizeClass  = computed(() => (['size-5',      'size-4',     'size-3.5',   'size-3'    ])[sizeTier.value])
-const inputWidthClass = computed(() => (['w-16 text-base', 'w-14 text-sm', 'w-12 text-sm', 'w-10 text-xs'])[sizeTier.value])
+const nameSizeClass = computed(
+  () => ['text-2xl', 'text-xl', 'text-base', 'text-sm'][sizeTier.value],
+)
+const scoreSizeClass = computed(
+  () => ['text-4xl', 'text-3xl', 'text-2xl', 'text-xl'][sizeTier.value],
+)
+const deltaSizeClass = computed(
+  () => ['text-sm', 'text-xs', 'text-xs', 'text-[10px]'][sizeTier.value],
+)
+const btnSizeClass = computed(() => ['size-10', 'size-9', 'size-8', 'size-7'][sizeTier.value])
+const iconSizeClass = computed(() => ['size-5', 'size-4', 'size-3.5', 'size-3'][sizeTier.value])
+const inputWidthClass = computed(
+  () => ['w-16 text-base', 'w-14 text-sm', 'w-12 text-sm', 'w-10 text-xs'][sizeTier.value],
+)
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -352,7 +370,6 @@ const MEDAL = ['🥇', '🥈', '🥉']
 
 <template>
   <div class="min-h-screen bg-bg-deep text-text-primary font-body">
-
     <!-- ══════════════════════════════════════════════════════════════
          SETUP SCREEN
     ════════════════════════════════════════════════════════════════ -->
@@ -362,7 +379,9 @@ const MEDAL = ['🥇', '🥈', '🥉']
 
       <!-- Session name -->
       <div class="mb-6">
-        <label class="block text-text-dim text-xs mb-1 font-display tracking-wide">TÊN PHIÊN (tùy chọn)</label>
+        <label class="block text-text-dim text-xs mb-1 font-display tracking-wide"
+          >TÊN PHIÊN (tùy chọn)</label
+        >
         <input
           v-model="setupName"
           type="text"
@@ -374,7 +393,9 @@ const MEDAL = ['🥇', '🥈', '🥉']
       <!-- Players -->
       <div class="mb-6">
         <div class="flex items-center justify-between mb-3">
-          <label class="text-text-dim text-xs font-display tracking-wide">NGƯỜI CHƠI ({{ setupPlayers.length }}/10)</label>
+          <label class="text-text-dim text-xs font-display tracking-wide"
+            >NGƯỜI CHƠI ({{ setupPlayers.length }}/10)</label
+          >
           <button
             v-if="setupPlayers.length < 10"
             class="flex items-center gap-1 text-xs text-accent-sky hover:text-text-primary transition"
@@ -423,10 +444,20 @@ const MEDAL = ['🥇', '🥈', '🥉']
                 v-for="hex in PALETTE"
                 :key="hex"
                 class="size-7 rounded-full border-2 transition hover:scale-110 focus:outline-none"
-                :class="setupPlayers.some(sp => sp.id !== p.id && sp.color === hex) ? 'opacity-25 cursor-not-allowed' : 'cursor-pointer hover:scale-125'"
-                :style="{ backgroundColor: hex, borderColor: p.color === hex ? '#2f241f' : 'white' }"
-                :disabled="setupPlayers.some(sp => sp.id !== p.id && sp.color === hex)"
-                @click="setSetupColor(p.id, hex); colorPickerOpen = null"
+                :class="
+                  setupPlayers.some((sp) => sp.id !== p.id && sp.color === hex)
+                    ? 'opacity-25 cursor-not-allowed'
+                    : 'cursor-pointer hover:scale-125'
+                "
+                :style="{
+                  backgroundColor: hex,
+                  borderColor: p.color === hex ? '#2f241f' : 'white',
+                }"
+                :disabled="setupPlayers.some((sp) => sp.id !== p.id && sp.color === hex)"
+                @click="
+                  setSetupColor(p.id, hex)
+                  colorPickerOpen = null
+                "
               />
             </div>
           </div>
@@ -477,9 +508,10 @@ const MEDAL = ['🥇', '🥈', '🥉']
          PLAY SCREEN
     ════════════════════════════════════════════════════════════════ -->
     <div v-else-if="session.phase === 'playing'" class="flex flex-col h-dvh max-w-lg mx-auto">
-
       <!-- Header -->
-      <header class="flex items-center justify-between px-4 py-3 border-b border-border-default bg-bg-surface shrink-0">
+      <header
+        class="flex items-center justify-between px-4 py-3 border-b border-border-default bg-bg-surface shrink-0"
+      >
         <div class="flex items-center gap-2 min-w-0">
           <RouterLink
             to="/"
@@ -489,7 +521,9 @@ const MEDAL = ['🥇', '🥈', '🥉']
             <Icon icon="lucide:home" class="size-4" />
           </RouterLink>
           <div class="min-w-0">
-            <h1 class="font-display font-bold text-text-primary leading-tight truncate">{{ session.name }}</h1>
+            <h1 class="font-display font-bold text-text-primary leading-tight truncate">
+              {{ session.name }}
+            </h1>
             <p class="text-text-dim text-xs">Ván {{ session.rounds.length + 1 }}</p>
           </div>
         </div>
@@ -523,63 +557,94 @@ const MEDAL = ['🥇', '🥈', '🥉']
         <div
           v-for="p in displayPlayers"
           :key="p.id"
-          class="flex flex-row items-stretch border-b border-border-default"
-          :style="{ borderLeftColor: p.color, borderLeftWidth: '4px', backgroundColor: colorHex(p.color, 0.05), flex: '1 1 0', minHeight: '72px' }"
+          class="flex flex-col border-b border-border-default"
+          :style="{
+            borderLeftColor: p.color,
+            borderLeftWidth: '4px',
+            backgroundColor: colorHex(p.color, 0.05),
+            flex: '1 1 0',
+            minHeight: '72px',
+          }"
         >
-          <!-- Trái: tên -->
-          <div class="flex-1 min-w-0 flex flex-col justify-center px-3 py-2">
-            <span
-              class="font-display font-bold leading-tight truncate"
-              :class="nameSizeClass"
-              :style="{ color: p.color }"
-            >
-              {{ p.name }}
-            </span>
-          </div>
-
-          <!-- Giữa: điểm + delta -->
-          <div class="flex-1 flex flex-col items-center justify-center px-1 shrink-0">
-            <span
-              class="font-display font-black tabular-nums leading-none"
-              :class="scoreSizeClass"
-              :style="{ color: p.color }"
-            >
-              {{ totalScore(p.id).toLocaleString('vi-VN') }}
-            </span>
-            <Transition name="delta">
+          <!-- Hàng trên: tên | điểm | [-/input/+] -->
+          <div class="flex flex-row items-stretch flex-1 min-h-0">
+            <!-- Trái: tên -->
+            <div class="flex-1 min-w-0 flex flex-col justify-center px-3 py-2">
               <span
-                v-if="deltaValue(p.id) !== 0"
-                class="font-display font-semibold px-1 rounded mt-0.5"
-                :class="[deltaSizeClass, deltaValue(p.id) > 0 ? 'text-green-600 bg-green-100' : 'text-red-600 bg-red-100']"
+                class="font-display font-bold leading-tight truncate"
+                :class="nameSizeClass"
+                :style="{ color: p.color }"
               >
-                {{ deltaValue(p.id) > 0 ? '+' : '' }}{{ deltaValue(p.id) }}
+                {{ p.name }}
               </span>
-            </Transition>
+            </div>
+
+            <!-- Giữa: điểm + delta -->
+            <div class="flex-1 flex flex-col items-center justify-center px-1 shrink-0">
+              <span
+                class="font-display font-black tabular-nums leading-none"
+                :class="scoreSizeClass"
+                :style="{ color: p.color }"
+              >
+                {{ totalScore(p.id).toLocaleString('vi-VN') }}
+              </span>
+              <Transition name="delta">
+                <span
+                  v-if="deltaValue(p.id) !== 0"
+                  class="font-display font-semibold px-1 rounded mt-0.5"
+                  :class="[
+                    deltaSizeClass,
+                    deltaValue(p.id) > 0
+                      ? 'text-green-600 bg-green-100'
+                      : 'text-red-600 bg-red-100',
+                  ]"
+                >
+                  {{ deltaValue(p.id) > 0 ? '+' : '' }}{{ deltaValue(p.id) }}
+                </span>
+              </Transition>
+            </div>
+
+            <!-- Phải: [-] input [+] -->
+            <div class="flex items-center gap-1 shrink-0 px-3">
+              <button
+                class="border border-border-default bg-bg-surface flex items-center justify-center text-text-secondary hover:border-accent-coral hover:text-accent-coral transition active:scale-95 select-none"
+                :class="btnSizeClass"
+                @click="changeInput(p.id, -1)"
+              >
+                <Icon icon="lucide:minus" :class="iconSizeClass" />
+              </button>
+              <input
+                type="number"
+                inputmode="numeric"
+                :value="currentInputs[p.id] ?? 0"
+                class="border border-border-default bg-bg-elevated text-center font-display font-semibold text-text-primary focus:border-accent-coral focus:outline-none py-1 transition"
+                :class="inputWidthClass"
+                @input="(e) => setInput(p.id, (e.target as HTMLInputElement).value)"
+              />
+              <button
+                class="border border-border-default bg-bg-surface flex items-center justify-center text-text-secondary hover:border-accent-sky hover:text-accent-sky transition active:scale-95 select-none"
+                :class="btnSizeClass"
+                @click="changeInput(p.id, 1)"
+              >
+                <Icon icon="lucide:plus" :class="iconSizeClass" />
+              </button>
+            </div>
           </div>
 
-          <!-- Phải: [-] input [+] -->
-          <div class="flex items-center gap-1 shrink-0 px-3">
+          <!-- Hàng dưới: quick buttons full-width -->
+          <div class="grid grid-cols-6 gap-1.5 px-3 pb-2.5 pt-0.5">
             <button
-              class="border border-border-default bg-bg-surface flex items-center justify-center text-text-secondary hover:border-accent-coral hover:text-accent-coral transition active:scale-95 select-none"
-              :class="btnSizeClass"
-              @click="changeInput(p.id, -1)"
+              v-for="delta in [-10, -5, -3, 3, 5, 10]"
+              :key="delta"
+              class="py-1.5 font-display font-bold text-xs tracking-wide border bg-bg-surface transition active:scale-95 select-none"
+              :class="
+                delta < 0
+                  ? 'border-border-default text-accent-coral hover:border-accent-coral hover:bg-accent-coral/5'
+                  : 'border-border-default text-accent-sky hover:border-accent-sky hover:bg-accent-sky/5'
+              "
+              @click="changeInput(p.id, delta)"
             >
-              <Icon icon="lucide:minus" :class="iconSizeClass" />
-            </button>
-            <input
-              type="number"
-              inputmode="numeric"
-              :value="currentInputs[p.id] ?? 0"
-              class="border border-border-default bg-bg-elevated text-center font-display font-semibold text-text-primary focus:border-accent-coral focus:outline-none py-1 transition"
-              :class="inputWidthClass"
-              @input="(e) => setInput(p.id, (e.target as HTMLInputElement).value)"
-            />
-            <button
-              class="border border-border-default bg-bg-surface flex items-center justify-center text-text-secondary hover:border-accent-sky hover:text-accent-sky transition active:scale-95 select-none"
-              :class="btnSizeClass"
-              @click="changeInput(p.id, 1)"
-            >
-              <Icon icon="lucide:plus" :class="iconSizeClass" />
+              {{ delta > 0 ? '+' : '' }}{{ delta }}
             </button>
           </div>
         </div>
@@ -589,15 +654,27 @@ const MEDAL = ['🥇', '🥈', '🥉']
       <div
         v-if="session.config.balanceCheck"
         class="px-4 py-2 border-t text-xs font-display flex items-center gap-2 shrink-0"
-        :class="isBalanced ? 'border-green-300 bg-green-50 text-green-700' : 'border-amber-300 bg-amber-50 text-amber-700'"
+        :class="
+          isBalanced
+            ? 'border-green-300 bg-green-50 text-green-700'
+            : 'border-amber-300 bg-amber-50 text-amber-700'
+        "
       >
-        <Icon :icon="isBalanced ? 'lucide:check-circle' : 'lucide:alert-circle'" class="size-4 shrink-0" />
+        <Icon
+          :icon="isBalanced ? 'lucide:check-circle' : 'lucide:alert-circle'"
+          class="size-4 shrink-0"
+        />
         <span v-if="isBalanced">Điểm cân bằng</span>
-        <span v-else>Chưa cân bằng — tổng hiện tại: <strong>{{ roundSum > 0 ? '+' : '' }}{{ roundSum }}</strong> (cần = 0)</span>
+        <span v-else
+          >Chưa cân bằng — tổng hiện tại:
+          <strong>{{ roundSum > 0 ? '+' : '' }}{{ roundSum }}</strong> (cần = 0)</span
+        >
       </div>
 
       <!-- Footer actions -->
-      <div class="flex items-center gap-2 px-4 py-3 border-t border-border-default bg-bg-surface shrink-0">
+      <div
+        class="flex items-center gap-2 px-4 py-3 border-t border-border-default bg-bg-surface shrink-0"
+      >
         <button
           class="flex items-center gap-1.5 border border-border-default bg-bg-surface px-3 py-2.5 text-sm text-text-secondary hover:border-accent-amber hover:text-accent-amber transition disabled:opacity-40 disabled:cursor-not-allowed"
           :disabled="session.rounds.length === 0"
@@ -609,9 +686,11 @@ const MEDAL = ['🥇', '🥈', '🥉']
 
         <button
           class="flex-1 border py-2.5 font-display font-semibold text-sm transition"
-          :class="canConfirm
-            ? 'border-accent-coral bg-accent-coral text-bg-surface hover:brightness-95'
-            : 'border-border-default bg-bg-elevated text-text-dim cursor-not-allowed'"
+          :class="
+            canConfirm
+              ? 'border-accent-coral bg-accent-coral text-bg-surface hover:brightness-95'
+              : 'border-border-default bg-bg-elevated text-text-dim cursor-not-allowed'
+          "
           :disabled="!canConfirm"
           @click="confirmRound"
         >
@@ -652,9 +731,20 @@ const MEDAL = ['🥇', '🥈', '🥉']
             >
               {{ finalRanking[1].name.charAt(0).toUpperCase() }}
             </div>
-            <span class="font-display text-xs font-semibold truncate max-w-16 text-center" :style="{ color: finalRanking[1].color }">{{ finalRanking[1].name }}</span>
-            <span class="font-display font-bold text-sm text-text-primary">{{ totalScore(finalRanking[1].id).toLocaleString('vi-VN') }}</span>
-            <div class="w-14 h-12 flex items-center justify-center text-2xl border-t-4" :style="{ borderColor: finalRanking[1].color }">🥈</div>
+            <span
+              class="font-display text-xs font-semibold truncate max-w-16 text-center"
+              :style="{ color: finalRanking[1].color }"
+              >{{ finalRanking[1].name }}</span
+            >
+            <span class="font-display font-bold text-sm text-text-primary">{{
+              totalScore(finalRanking[1].id).toLocaleString('vi-VN')
+            }}</span>
+            <div
+              class="w-14 h-12 flex items-center justify-center text-2xl border-t-4"
+              :style="{ borderColor: finalRanking[1].color }"
+            >
+              🥈
+            </div>
           </div>
           <!-- 1st -->
           <div class="flex flex-col items-center gap-1" v-if="finalRanking[0]">
@@ -664,9 +754,20 @@ const MEDAL = ['🥇', '🥈', '🥉']
             >
               {{ finalRanking[0].name.charAt(0).toUpperCase() }}
             </div>
-            <span class="font-display text-xs font-semibold truncate max-w-20 text-center" :style="{ color: finalRanking[0].color }">{{ finalRanking[0].name }}</span>
-            <span class="font-display font-bold text-base text-text-primary">{{ totalScore(finalRanking[0].id).toLocaleString('vi-VN') }}</span>
-            <div class="w-16 h-16 flex items-center justify-center text-3xl border-t-4" :style="{ borderColor: finalRanking[0].color }">🥇</div>
+            <span
+              class="font-display text-xs font-semibold truncate max-w-20 text-center"
+              :style="{ color: finalRanking[0].color }"
+              >{{ finalRanking[0].name }}</span
+            >
+            <span class="font-display font-bold text-base text-text-primary">{{
+              totalScore(finalRanking[0].id).toLocaleString('vi-VN')
+            }}</span>
+            <div
+              class="w-16 h-16 flex items-center justify-center text-3xl border-t-4"
+              :style="{ borderColor: finalRanking[0].color }"
+            >
+              🥇
+            </div>
           </div>
           <!-- 3rd -->
           <div class="flex flex-col items-center gap-1" v-if="finalRanking[2]">
@@ -676,9 +777,20 @@ const MEDAL = ['🥇', '🥈', '🥉']
             >
               {{ finalRanking[2].name.charAt(0).toUpperCase() }}
             </div>
-            <span class="font-display text-xs font-semibold truncate max-w-16 text-center" :style="{ color: finalRanking[2].color }">{{ finalRanking[2].name }}</span>
-            <span class="font-display font-bold text-sm text-text-primary">{{ totalScore(finalRanking[2].id).toLocaleString('vi-VN') }}</span>
-            <div class="w-14 h-10 flex items-center justify-center text-2xl border-t-4" :style="{ borderColor: finalRanking[2].color }">🥉</div>
+            <span
+              class="font-display text-xs font-semibold truncate max-w-16 text-center"
+              :style="{ color: finalRanking[2].color }"
+              >{{ finalRanking[2].name }}</span
+            >
+            <span class="font-display font-bold text-sm text-text-primary">{{
+              totalScore(finalRanking[2].id).toLocaleString('vi-VN')
+            }}</span>
+            <div
+              class="w-14 h-10 flex items-center justify-center text-2xl border-t-4"
+              :style="{ borderColor: finalRanking[2].color }"
+            >
+              🥉
+            </div>
           </div>
         </div>
 
@@ -693,7 +805,11 @@ const MEDAL = ['🥇', '🥈', '🥉']
             <span class="font-display text-sm w-6 text-center shrink-0" :style="{ color: p.color }">
               {{ i < 3 ? MEDAL[i] : i + 1 }}
             </span>
-            <span class="flex-1 font-display font-semibold text-sm truncate" :style="{ color: p.color }">{{ p.name }}</span>
+            <span
+              class="flex-1 font-display font-semibold text-sm truncate"
+              :style="{ color: p.color }"
+              >{{ p.name }}</span
+            >
             <span class="font-display font-bold text-base" :style="{ color: p.color }">
               {{ totalScore(p.id).toLocaleString('vi-VN') }}
             </span>
@@ -708,7 +824,11 @@ const MEDAL = ['🥇', '🥈', '🥉']
           :disabled="exporting"
           @click="exportImage"
         >
-          <Icon :icon="exporting ? 'lucide:loader-circle' : 'lucide:image'" class="size-4" :class="exporting ? 'animate-spin' : ''" />
+          <Icon
+            :icon="exporting ? 'lucide:loader-circle' : 'lucide:image'"
+            class="size-4"
+            :class="exporting ? 'animate-spin' : ''"
+          />
           {{ exporting ? 'Đang xuất...' : 'Xuất ảnh bảng điểm' }}
         </button>
         <div class="flex gap-3">
@@ -740,16 +860,30 @@ const MEDAL = ['🥇', '🥈', '🥉']
     ════════════════════════════════════════════════════════════════ -->
     <Teleport to="body">
       <Transition name="sheet">
-        <div v-if="showHistory" class="fixed inset-0 z-50 flex flex-col justify-end" @click.self="showHistory = false">
-          <div class="bg-bg-deep border-t border-border-default max-h-[85vh] flex flex-col max-w-lg mx-auto w-full">
-            <div class="flex items-center justify-between px-4 py-3 border-b border-border-default shrink-0">
+        <div
+          v-if="showHistory"
+          class="fixed inset-0 z-50 flex flex-col justify-end"
+          @click.self="showHistory = false"
+        >
+          <div
+            class="bg-bg-deep border-t border-border-default max-h-[85vh] flex flex-col max-w-lg mx-auto w-full"
+          >
+            <div
+              class="flex items-center justify-between px-4 py-3 border-b border-border-default shrink-0"
+            >
               <h2 class="font-display font-bold text-text-primary">Lịch sử ván</h2>
-              <button class="text-text-dim hover:text-text-primary transition" @click="showHistory = false">
+              <button
+                class="text-text-dim hover:text-text-primary transition"
+                @click="showHistory = false"
+              >
                 <Icon icon="lucide:x" class="size-5" />
               </button>
             </div>
             <div class="overflow-auto flex-1">
-              <div v-if="session.rounds.length === 0" class="py-12 text-center text-text-dim text-sm">
+              <div
+                v-if="session.rounds.length === 0"
+                class="py-12 text-center text-text-dim text-sm"
+              >
                 Chưa có ván nào được ghi nhận
               </div>
               <table v-else class="w-full text-sm border-collapse">
@@ -777,7 +911,13 @@ const MEDAL = ['🥇', '🥈', '🥉']
                       v-for="p in session.players"
                       :key="p.id"
                       class="px-3 py-2.5 text-right font-display font-semibold text-sm"
-                      :class="(round[p.id] ?? 0) > 0 ? 'text-green-600' : (round[p.id] ?? 0) < 0 ? 'text-red-600' : 'text-text-dim'"
+                      :class="
+                        (round[p.id] ?? 0) > 0
+                          ? 'text-green-600'
+                          : (round[p.id] ?? 0) < 0
+                            ? 'text-red-600'
+                            : 'text-text-dim'
+                      "
                     >
                       {{ (round[p.id] ?? 0) > 0 ? '+' : '' }}{{ round[p.id] ?? 0 }}
                     </td>
@@ -785,7 +925,9 @@ const MEDAL = ['🥇', '🥈', '🥉']
                 </tbody>
                 <tfoot>
                   <tr class="border-t-2 border-border-default bg-bg-surface sticky bottom-0">
-                    <td class="px-3 py-2.5 text-text-dim font-display text-xs font-semibold">TỔNG</td>
+                    <td class="px-3 py-2.5 text-text-dim font-display text-xs font-semibold">
+                      TỔNG
+                    </td>
                     <td
                       v-for="p in session.players"
                       :key="p.id"
@@ -808,11 +950,18 @@ const MEDAL = ['🥇', '🥈', '🥉']
     ════════════════════════════════════════════════════════════════ -->
     <Teleport to="body">
       <Transition name="sheet">
-        <div v-if="showConfigSheet" class="fixed inset-0 z-50 flex flex-col justify-end" @click.self="showConfigSheet = false">
+        <div
+          v-if="showConfigSheet"
+          class="fixed inset-0 z-50 flex flex-col justify-end"
+          @click.self="showConfigSheet = false"
+        >
           <div class="bg-bg-deep border-t border-border-default max-w-lg mx-auto w-full">
             <div class="flex items-center justify-between px-4 py-3 border-b border-border-default">
               <h2 class="font-display font-bold text-text-primary">Cài đặt</h2>
-              <button class="text-text-dim hover:text-text-primary transition" @click="showConfigSheet = false">
+              <button
+                class="text-text-dim hover:text-text-primary transition"
+                @click="showConfigSheet = false"
+              >
                 <Icon icon="lucide:x" class="size-5" />
               </button>
             </div>
@@ -852,7 +1001,10 @@ const MEDAL = ['🥇', '🥈', '🥉']
               <div class="pt-2 border-t border-border-default">
                 <button
                   class="w-full border border-border-default py-2.5 text-sm text-text-secondary font-display hover:border-accent-coral hover:text-accent-coral transition"
-                  @click="showConfigSheet = false; endGame()"
+                  @click="
+                    showConfigSheet = false
+                    endGame()
+                  "
                 >
                   Kết thúc phiên chơi
                 </button>
@@ -868,11 +1020,22 @@ const MEDAL = ['🥇', '🥈', '🥉']
     ════════════════════════════════════════════════════════════════ -->
     <Teleport to="body">
       <Transition name="sheet">
-        <div v-if="showManagePlayers" class="fixed inset-0 z-50 flex flex-col justify-end" @click.self="showManagePlayers = false">
-          <div class="bg-bg-deep border-t border-border-default max-h-[80vh] flex flex-col max-w-lg mx-auto w-full">
-            <div class="flex items-center justify-between px-4 py-3 border-b border-border-default shrink-0">
+        <div
+          v-if="showManagePlayers"
+          class="fixed inset-0 z-50 flex flex-col justify-end"
+          @click.self="showManagePlayers = false"
+        >
+          <div
+            class="bg-bg-deep border-t border-border-default max-h-[80vh] flex flex-col max-w-lg mx-auto w-full"
+          >
+            <div
+              class="flex items-center justify-between px-4 py-3 border-b border-border-default shrink-0"
+            >
               <h2 class="font-display font-bold text-text-primary">Quản lý người chơi</h2>
-              <button class="text-text-dim hover:text-text-primary transition" @click="showManagePlayers = false">
+              <button
+                class="text-text-dim hover:text-text-primary transition"
+                @click="showManagePlayers = false"
+              >
                 <Icon icon="lucide:x" class="size-5" />
               </button>
             </div>
@@ -901,7 +1064,10 @@ const MEDAL = ['🥇', '🥈', '🥉']
                       @keyup.enter="saveEditPlayer"
                       @keyup.escape="editingPlayerId = null"
                     />
-                    <button class="text-accent-coral hover:text-text-primary transition shrink-0" @click="saveEditPlayer">
+                    <button
+                      class="text-accent-coral hover:text-text-primary transition shrink-0"
+                      @click="saveEditPlayer"
+                    >
                       <Icon icon="lucide:check" class="size-4" />
                     </button>
                   </div>
@@ -935,9 +1101,16 @@ const MEDAL = ['🥇', '🥈', '🥉']
                     v-for="hex in PALETTE"
                     :key="hex"
                     class="size-7 rounded-full border-2 transition focus:outline-none"
-                    :class="session.players.some(sp => sp.id !== p.id && sp.color === hex) ? 'opacity-25 cursor-not-allowed' : 'cursor-pointer hover:scale-125'"
-                    :style="{ backgroundColor: hex, borderColor: p.color === hex ? '#2f241f' : 'white' }"
-                    :disabled="session.players.some(sp => sp.id !== p.id && sp.color === hex)"
+                    :class="
+                      session.players.some((sp) => sp.id !== p.id && sp.color === hex)
+                        ? 'opacity-25 cursor-not-allowed'
+                        : 'cursor-pointer hover:scale-125'
+                    "
+                    :style="{
+                      backgroundColor: hex,
+                      borderColor: p.color === hex ? '#2f241f' : 'white',
+                    }"
+                    :disabled="session.players.some((sp) => sp.id !== p.id && sp.color === hex)"
                     @click="setPlayerColor(p.id, hex)"
                   />
                 </div>
@@ -945,8 +1118,13 @@ const MEDAL = ['🥇', '🥈', '🥉']
             </div>
 
             <!-- Add new player -->
-            <div v-if="session.players.length < 10" class="px-4 py-3 border-t border-border-default shrink-0">
-              <p class="text-text-dim text-xs font-display tracking-wide mb-2">THÊM NGƯỜI CHƠI MỚI</p>
+            <div
+              v-if="session.players.length < 10"
+              class="px-4 py-3 border-t border-border-default shrink-0"
+            >
+              <p class="text-text-dim text-xs font-display tracking-wide mb-2">
+                THÊM NGƯỜI CHƠI MỚI
+              </p>
               <!-- Color picker for new player -->
               <div class="mb-2">
                 <div class="flex items-center gap-2 mb-1.5">
@@ -966,10 +1144,20 @@ const MEDAL = ['🥇', '🥈', '🥉']
                     v-for="hex in PALETTE"
                     :key="hex"
                     class="size-7 rounded-full border-2 transition focus:outline-none"
-                    :class="session.players.some(sp => sp.color === hex) ? 'opacity-25 cursor-not-allowed' : 'cursor-pointer hover:scale-125'"
-                    :style="{ backgroundColor: hex, borderColor: newPlayerColor === hex ? '#2f241f' : 'white' }"
-                    :disabled="session.players.some(sp => sp.color === hex)"
-                    @click="newPlayerColor = hex; colorPickerOpen = null"
+                    :class="
+                      session.players.some((sp) => sp.color === hex)
+                        ? 'opacity-25 cursor-not-allowed'
+                        : 'cursor-pointer hover:scale-125'
+                    "
+                    :style="{
+                      backgroundColor: hex,
+                      borderColor: newPlayerColor === hex ? '#2f241f' : 'white',
+                    }"
+                    :disabled="session.players.some((sp) => sp.color === hex)"
+                    @click="
+                      newPlayerColor = hex
+                      colorPickerOpen = null
+                    "
                   />
                 </div>
               </div>
@@ -994,7 +1182,6 @@ const MEDAL = ['🥇', '🥈', '🥉']
         </div>
       </Transition>
     </Teleport>
-
   </div>
 </template>
 

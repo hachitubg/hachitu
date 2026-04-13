@@ -8,6 +8,45 @@ const ROOM_TTL_MS = 1000 * 60 * 60 * 24
 const MAX_MESSAGES = 180
 const rooms = new Map()
 
+// ── Game rooms ────────────────────────────────────────────────────────────────
+const gameRooms = new Map()
+const gameSocketMap = new Map() // `${roomId}:${playerId}` → socketId
+
+function makeGamePlayer({ playerId, sessionId, displayName, isHost = false }) {
+  return {
+    playerId,
+    sessionId,
+    displayName,
+    connected: false,
+    isHost,
+    joinedAt: Date.now(),
+  }
+}
+
+function makeGameRoom({ gameType, displayName }) {
+  const now = Date.now()
+  const playerId = createId()
+  const sessionId = createId(24)
+  const roomId = createId(6).toUpperCase()
+  const host = makeGamePlayer({ playerId, sessionId, displayName, isHost: true })
+  return {
+    room: {
+      roomId,
+      gameType,
+      createdAt: now,
+      lastActiveAt: now,
+      expiresAt: computeExpiresAt(now),
+      currentPhase: 'setup',
+      hostPlayerId: playerId,
+      players: [host],
+    },
+    hostPlayerId: playerId,
+    hostSessionId: sessionId,
+  }
+}
+
+// ── Shared helpers ─────────────────────────────────────────────────────────────
+
 function json(response, statusCode, payload) {
   response.writeHead(statusCode, {
     'content-type': 'application/json; charset=utf-8',
@@ -29,7 +68,9 @@ function createId(length = 12) {
 }
 
 function trimValue(value, maxLength) {
-  return String(value ?? '').trim().slice(0, maxLength)
+  return String(value ?? '')
+    .trim()
+    .slice(0, maxLength)
 }
 
 function normalizeAvatarPreset(value) {
@@ -89,7 +130,9 @@ function makeRoom({ roomName, host }) {
 }
 
 function findParticipant(room, participantId) {
-  return room.participants.find((participant) => participant.participantId === participantId) ?? null
+  return (
+    room.participants.find((participant) => participant.participantId === participantId) ?? null
+  )
 }
 
 function upsertParticipant(room, nextParticipant) {
@@ -121,15 +164,15 @@ function toRoomResponse(room) {
   }
 }
 
-function buildAttachment(templateId, title, mediaUrl, mediaKind, pageUrl = null, previewUrl = null) {
-  return {
-    templateId,
-    title,
-    mediaUrl,
-    mediaKind,
-    pageUrl,
-    previewUrl,
-  }
+function buildAttachment(
+  templateId,
+  title,
+  mediaUrl,
+  mediaKind,
+  pageUrl = null,
+  previewUrl = null,
+) {
+  return { templateId, title, mediaUrl, mediaKind, pageUrl, previewUrl }
 }
 
 function isSafeMediaUrl(value) {
@@ -137,29 +180,16 @@ function isSafeMediaUrl(value) {
 }
 
 function validateAttachment(attachment, allowedKinds) {
-  if (!attachment) {
-    return null
-  }
-
+  if (!attachment) return null
   const templateId = trimValue(attachment.templateId, 32)
   const title = trimValue(attachment.title, 80)
   const mediaUrl = trimValue(attachment.mediaUrl, 500)
   const previewUrl = trimValue(attachment.previewUrl ?? '', 500)
   const pageUrl = trimValue(attachment.pageUrl ?? '', 500)
   const mediaKind = allowedKinds.includes(attachment.mediaKind) ? attachment.mediaKind : null
-
-  if (!templateId || !title || !mediaUrl || !mediaKind || !isSafeMediaUrl(mediaUrl)) {
-    return null
-  }
-
-  if (previewUrl && !isSafeMediaUrl(previewUrl)) {
-    return null
-  }
-
-  if (pageUrl && !isSafeMediaUrl(pageUrl)) {
-    return null
-  }
-
+  if (!templateId || !title || !mediaUrl || !mediaKind || !isSafeMediaUrl(mediaUrl)) return null
+  if (previewUrl && !isSafeMediaUrl(previewUrl)) return null
+  if (pageUrl && !isSafeMediaUrl(pageUrl)) return null
   return buildAttachment(
     templateId,
     title,
@@ -172,32 +202,23 @@ function validateAttachment(attachment, allowedKinds) {
 
 function createMessage(room, sender, payload) {
   const now = Date.now()
-  if (payload.type !== 'send_message') {
-    return null
-  }
-
+  if (payload.type !== 'send_message') return null
   if (payload.kind === 'text') {
-    const text = trimValue(payload.text, 500)
-    if (!text) {
-      return null
-    }
-
+    const t = trimValue(payload.text, 500)
+    if (!t) return null
     return {
       messageId: createId(16),
       participantId: sender.participantId,
       displayName: sender.displayName,
       kind: 'text',
-      text,
+      text: t,
       attachment: null,
       createdAt: now,
     }
   }
-
   if (payload.kind === 'icon') {
     const attachment = validateAttachment(payload.icon, ['gif'])
-    if (!attachment) {
-      return null
-    }
+    if (!attachment) return null
     return {
       messageId: createId(16),
       participantId: sender.participantId,
@@ -208,12 +229,9 @@ function createMessage(room, sender, payload) {
       createdAt: now,
     }
   }
-
   if (payload.kind === 'meme') {
     const attachment = validateAttachment(payload.meme, ['gif', 'image', 'video'])
-    if (!attachment) {
-      return null
-    }
+    if (!attachment) return null
     return {
       messageId: createId(16),
       participantId: sender.participantId,
@@ -224,18 +242,13 @@ function createMessage(room, sender, payload) {
       createdAt: now,
     }
   }
-
   return null
 }
 
 async function parseJsonBody(request) {
   const chunks = []
-  for await (const chunk of request) {
-    chunks.push(chunk)
-  }
-  if (!chunks.length) {
-    return {}
-  }
+  for await (const chunk of request) chunks.push(chunk)
+  if (!chunks.length) return {}
   try {
     return JSON.parse(Buffer.concat(chunks).toString('utf-8'))
   } catch {
@@ -245,9 +258,7 @@ async function parseJsonBody(request) {
 
 async function fetchImgflipMemes(kind) {
   const response = await fetch(`https://api.imgflip.com/get_memes?type=${kind}`)
-  if (!response.ok) {
-    return []
-  }
+  if (!response.ok) return []
   const payload = await response.json()
   const memes = payload?.data?.memes ?? []
   return memes.map((item) => ({
@@ -263,25 +274,21 @@ async function fetchImgflipMemes(kind) {
 
 function shuffle(items) {
   const next = [...items]
-  for (let index = next.length - 1; index > 0; index -= 1) {
-    const swapIndex = Math.floor(Math.random() * (index + 1))
-    const current = next[index]
-    next[index] = next[swapIndex]
-    next[swapIndex] = current
+  for (let i = next.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[next[i], next[j]] = [next[j], next[i]]
   }
   return next
 }
 
 async function getDiscoveries(kind, limit) {
-  if (kind === 'image') {
-    return shuffle(await fetchImgflipMemes('image')).slice(0, limit)
-  }
-  if (kind === 'gif') {
-    return shuffle(await fetchImgflipMemes('gif')).slice(0, limit)
-  }
+  if (kind === 'image') return shuffle(await fetchImgflipMemes('image')).slice(0, limit)
+  if (kind === 'gif') return shuffle(await fetchImgflipMemes('gif')).slice(0, limit)
   const [images, gifs] = await Promise.all([fetchImgflipMemes('image'), fetchImgflipMemes('gif')])
   return shuffle([...images, ...gifs]).slice(0, limit)
 }
+
+// ── HTTP server ───────────────────────────────────────────────────────────────
 
 const server = createServer(async (request, response) => {
   if (!request.url) {
@@ -292,6 +299,7 @@ const server = createServer(async (request, response) => {
   const url = new URL(request.url, `http://${request.headers.host}`)
   const segments = url.pathname.split('/').filter(Boolean)
 
+  // Health
   if (url.pathname === '/api/health' && request.method === 'GET') {
     json(response, 200, {
       name: 'hachitu-server',
@@ -302,26 +310,68 @@ const server = createServer(async (request, response) => {
     return
   }
 
+  // Chat discoveries
   if (url.pathname === '/api/apps/chat-online/discoveries' && request.method === 'GET') {
-    const kind = ['image', 'gif'].includes(url.searchParams.get('kind')) ? url.searchParams.get('kind') : 'mixed'
+    const kind = ['image', 'gif'].includes(url.searchParams.get('kind'))
+      ? url.searchParams.get('kind')
+      : 'mixed'
     const limit = Math.min(Math.max(Number(url.searchParams.get('limit') || 12), 6), 24)
-    json(response, 200, {
-      kind,
-      discoveries: await getDiscoveries(kind, limit),
-    })
+    json(response, 200, { kind, discoveries: await getDiscoveries(kind, limit) })
     return
   }
 
+  // ── Game room: create ──────────────────────────────────────────────────────
+  if (url.pathname === '/api/game/rooms' && request.method === 'POST') {
+    const body = await parseJsonBody(request)
+    const displayName = normalizeDisplayName(body.displayName)
+    const gameType = trimValue(body.gameType, 32)
+    if (!displayName || !gameType) {
+      text(response, 400, 'Missing displayName or gameType')
+      return
+    }
+    const { room, hostPlayerId, hostSessionId } = makeGameRoom({ gameType, displayName })
+    gameRooms.set(room.roomId, room)
+    json(response, 200, { roomId: room.roomId, hostPlayerId, hostSessionId })
+    return
+  }
+
+  // ── Game room: join ────────────────────────────────────────────────────────
+  if (
+    segments[0] === 'api' &&
+    segments[1] === 'game' &&
+    segments[2] === 'rooms' &&
+    segments[3] &&
+    segments[4] === 'join' &&
+    request.method === 'POST'
+  ) {
+    const room = gameRooms.get(segments[3])
+    if (!room) {
+      text(response, 404, 'Room not found')
+      return
+    }
+    const body = await parseJsonBody(request)
+    const displayName = normalizeDisplayName(body.displayName)
+    if (!displayName) {
+      text(response, 400, 'Missing displayName')
+      return
+    }
+    const playerId = createId()
+    const sessionId = createId(24)
+    room.players.push(makeGamePlayer({ playerId, sessionId, displayName }))
+    touchRoom(room)
+    json(response, 200, { roomId: room.roomId, playerId, sessionId })
+    return
+  }
+
+  // ── Chat room: create ──────────────────────────────────────────────────────
   if (url.pathname === '/api/chat/rooms' && request.method === 'POST') {
     const body = await parseJsonBody(request)
     const displayName = normalizeDisplayName(body.displayName)
     const roomName = normalizeRoomName(body.roomName)
-
     if (!displayName || !roomName) {
       text(response, 400, 'Missing display name or room name')
       return
     }
-
     const host = makeParticipant({
       participantId: createId(),
       sessionId: createId(24),
@@ -329,13 +379,13 @@ const server = createServer(async (request, response) => {
       avatarPreset: normalizeAvatarPreset(body.avatarPreset),
       isHost: true,
     })
-
     const room = makeRoom({ roomName, host })
     rooms.set(room.roomId, room)
     json(response, 200, toRoomResponse(room))
     return
   }
 
+  // ── Chat room: get / join / leave ──────────────────────────────────────────
   if (segments[0] === 'api' && segments[1] === 'chat' && segments[2] === 'rooms' && segments[3]) {
     const room = getRoom(segments[3])
     if (!room) {
@@ -352,39 +402,21 @@ const server = createServer(async (request, response) => {
     if (segments[4] === 'join' && request.method === 'POST') {
       const body = await parseJsonBody(request)
       const displayName = normalizeDisplayName(body.displayName)
-
       if (!displayName) {
         text(response, 400, 'Missing display name')
         return
       }
-
       const participantId = trimValue(body.participantId, 64) || createId()
       const sessionId = trimValue(body.sessionId, 64) || createId(24)
       const avatarPreset = normalizeAvatarPreset(body.avatarPreset)
       const existing = findParticipant(room, participantId)
       const participant = existing
-        ? {
-            ...existing,
-            displayName,
-            sessionId,
-            avatarPreset,
-            lastSeenAt: Date.now(),
-          }
-        : makeParticipant({
-            participantId,
-            sessionId,
-            displayName,
-            avatarPreset,
-          })
-
+        ? { ...existing, displayName, sessionId, avatarPreset, lastSeenAt: Date.now() }
+        : makeParticipant({ participantId, sessionId, displayName, avatarPreset })
       upsertParticipant(room, participant)
       room.version += 1
       touchRoom(room)
-      json(response, 200, {
-        room,
-        participant,
-        websocketUrl: '/socket.io',
-      })
+      json(response, 200, { room, participant, websocketUrl: '/socket.io' })
       return
     }
 
@@ -410,15 +442,120 @@ const server = createServer(async (request, response) => {
   text(response, 404, 'Not Found')
 })
 
+// ── Socket.IO ─────────────────────────────────────────────────────────────────
+
 const io = new SocketIOServer(server, {
   path: '/socket.io',
-  cors: {
-    origin: true,
-    credentials: true,
-  },
+  cors: { origin: true, credentials: true },
 })
 
 io.on('connection', (socket) => {
+  const gameType = trimValue(socket.handshake.query.gameType, 32)
+  if (gameType) {
+    handleGameSocket(socket)
+    return
+  }
+  handleChatSocket(socket)
+})
+
+// ── Game socket handler ───────────────────────────────────────────────────────
+
+function handleGameSocket(socket) {
+  const roomId = trimValue(socket.handshake.query.roomId, 16)
+  const playerId = trimValue(socket.handshake.query.playerId, 64)
+  const sessionId = trimValue(socket.handshake.query.sessionId, 64)
+  const displayName = normalizeDisplayName(socket.handshake.query.displayName)
+
+  const room = gameRooms.get(roomId)
+  const player = room?.players.find((p) => p.playerId === playerId && p.sessionId === sessionId)
+
+  if (!room || !player) {
+    socket.emit('game:event', { type: 'error', reason: 'Room not found or invalid session' })
+    socket.disconnect(true)
+    return
+  }
+
+  gameSocketMap.set(`${roomId}:${playerId}`, socket.id)
+  socket.data.gameRoomId = roomId
+  socket.data.gamePlayerId = playerId
+  socket.join(roomId)
+
+  player.connected = true
+  player.displayName = displayName || player.displayName
+  touchRoom(room)
+
+  socket.emit('game:event', { type: 'room_state', room, serverTime: Date.now() })
+  socket.to(roomId).emit('game:event', { type: 'player_joined', player, serverTime: Date.now() })
+  io.to(roomId).emit('game:event', {
+    type: 'players_updated',
+    players: room.players,
+    serverTime: Date.now(),
+  })
+
+  socket.on('game:client', (payload) => {
+    if (!payload?.type) return
+    touchRoom(room)
+
+    if (payload.type === 'broadcast') {
+      if (String(payload.action ?? '') === 'ww_phase') {
+        room.currentPhase = String(payload.payload?.phase ?? 'setup')
+      }
+      io.to(roomId).emit('game:event', {
+        type: 'action',
+        fromPlayerId: playerId,
+        action: String(payload.action ?? ''),
+        payload: payload.payload ?? {},
+        serverTime: Date.now(),
+      })
+    } else if (payload.type === 'directed') {
+      const toSocketId = gameSocketMap.get(`${roomId}:${String(payload.toPlayerId ?? '')}`)
+      if (toSocketId) {
+        io.to(toSocketId).emit('game:event', {
+          type: 'directed_message',
+          fromPlayerId: playerId,
+          action: String(payload.action ?? ''),
+          payload: payload.payload ?? {},
+          serverTime: Date.now(),
+        })
+      }
+    }
+  })
+
+  socket.on('disconnect', () => {
+    gameSocketMap.delete(`${roomId}:${playerId}`)
+    if (player.isHost) {
+      socket.to(roomId).emit('game:event', {
+        type: 'error',
+        reason: 'Quản trò đã thoát phòng',
+        serverTime: Date.now(),
+      })
+      for (const roomPlayer of room.players) {
+        gameSocketMap.delete(`${roomId}:${roomPlayer.playerId}`)
+      }
+      gameRooms.delete(roomId)
+      return
+    }
+
+    if (room.currentPhase === 'setup') {
+      const playerIndex = room.players.findIndex((p) => p.playerId === playerId)
+      if (playerIndex >= 0) room.players.splice(playerIndex, 1)
+    } else {
+      player.connected = false
+    }
+
+    touchRoom(room)
+    io.to(roomId).emit('game:event', {
+      type: 'players_updated',
+      players: room.players,
+      serverTime: Date.now(),
+    })
+    io.to(roomId).emit('game:event', { type: 'player_left', playerId, serverTime: Date.now() })
+  })
+}
+
+// ── Chat socket handler ───────────────────────────────────────────────────────
+
+function handleChatSocket(socket) {
   const roomId = trimValue(socket.handshake.query.roomId, 32)
   const participantId = trimValue(socket.handshake.query.participantId, 64)
   const sessionId = trimValue(socket.handshake.query.sessionId, 64)
@@ -449,18 +586,10 @@ io.on('connection', (socket) => {
   touchRoom(room)
   room.version += 1
 
-  socket.emit('chat:event', {
-    type: 'initial_state',
-    room,
-    serverTime: Date.now(),
-  })
-
-  socket.to(roomId).emit('chat:event', {
-    type: 'participant_joined',
-    participant,
-    serverTime: Date.now(),
-  })
-
+  socket.emit('chat:event', { type: 'initial_state', room, serverTime: Date.now() })
+  socket
+    .to(roomId)
+    .emit('chat:event', { type: 'participant_joined', participant, serverTime: Date.now() })
   io.to(roomId).emit('chat:event', {
     type: 'presence_updated',
     participants: room.participants,
@@ -478,11 +607,7 @@ io.on('connection', (socket) => {
       })
       return
     }
-
-    if (payload?.type === 'hello') {
-      return
-    }
-
+    if (payload?.type === 'hello') return
     if (payload?.type === 'ping') {
       socket.emit('chat:event', {
         type: 'pong',
@@ -491,7 +616,6 @@ io.on('connection', (socket) => {
       })
       return
     }
-
     if (payload?.type === 'typing') {
       sender.lastTypingAt = Date.now()
       sender.lastSeenAt = Date.now()
@@ -505,7 +629,6 @@ io.on('connection', (socket) => {
       })
       return
     }
-
     const message = createMessage(activeRoom, sender, payload)
     if (!message) {
       socket.emit('chat:event', {
@@ -515,21 +638,18 @@ io.on('connection', (socket) => {
       })
       return
     }
-
     sender.lastSeenAt = Date.now()
     sender.lastTypingAt = null
     sender.connected = true
     activeRoom.messages = [...activeRoom.messages, message].slice(-MAX_MESSAGES)
     activeRoom.version += 1
     touchRoom(activeRoom)
-
     io.to(roomId).emit('chat:event', {
       type: 'message_created',
       message,
       roomVersion: activeRoom.version,
       serverTime: Date.now(),
     })
-
     io.to(roomId).emit('chat:event', {
       type: 'presence_updated',
       participants: activeRoom.participants,
@@ -540,41 +660,39 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     const activeRoom = getRoom(roomId)
     const leaving = activeRoom ? findParticipant(activeRoom, participantId) : null
-    if (!activeRoom || !leaving) {
-      return
-    }
-
+    if (!activeRoom || !leaving) return
     leaving.connected = false
     leaving.lastSeenAt = Date.now()
     activeRoom.version += 1
     touchRoom(activeRoom)
-
-    socket.to(roomId).emit('chat:event', {
-      type: 'participant_left',
-      participantId,
-      serverTime: Date.now(),
-    })
-
+    socket
+      .to(roomId)
+      .emit('chat:event', { type: 'participant_left', participantId, serverTime: Date.now() })
     io.to(roomId).emit('chat:event', {
       type: 'presence_updated',
       participants: activeRoom.participants,
       serverTime: Date.now(),
     })
   })
-})
+}
+
+// ── Cleanup expired rooms ─────────────────────────────────────────────────────
 
 setInterval(() => {
   const now = Date.now()
   for (const [roomId, room] of rooms.entries()) {
-    if (room.lastActiveAt + ROOM_TTL_MS > now) {
-      continue
-    }
+    if (room.lastActiveAt + ROOM_TTL_MS > now) continue
     io.to(roomId).emit('chat:event', {
       type: 'room_expiring',
       expiresAt: room.expiresAt,
       serverTime: now,
     })
     rooms.delete(roomId)
+  }
+  for (const [roomId, room] of gameRooms.entries()) {
+    if (room.lastActiveAt + ROOM_TTL_MS > now) continue
+    io.to(roomId).emit('game:event', { type: 'room_expiring', serverTime: now })
+    gameRooms.delete(roomId)
   }
 }, 60_000).unref()
 
