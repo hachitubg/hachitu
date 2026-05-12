@@ -94,6 +94,7 @@ pnpm create:page my-first-app
 - `docs/HACHITU_MULTIPLAYER_ARCHITECTURE.md`
 - `docs/HACHITU_APP_API_GUIDELINES.md`
 - `docs/HACHITU_AI_API_GUIDELINES.md`
+- `docs/HACHITU_SQLITE_APP_GUIDELINES.md`
 - `docs/HACHITU_DEPLOYMENT.md`
 
 ## Deploy

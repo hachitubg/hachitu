@@ -147,6 +147,7 @@ function startGame() {
 // ─── Play screen state ────────────────────────────────────────────────────────
 
 const currentInputs = ref<Record<string, number>>({})
+const currentInputTexts = ref<Record<string, string>>({})
 const deltaFlash = ref<Record<string, number>>({})
 const showHistory = ref(false)
 const showConfigSheet = ref(false)
@@ -165,10 +166,13 @@ const newPlayerColor = ref('')
 
 function initInputs() {
   const inputs: Record<string, number> = {}
+  const inputTexts: Record<string, string> = {}
   session.value.players.forEach((p) => {
     inputs[p.id] = 0
+    inputTexts[p.id] = '0'
   })
   currentInputs.value = inputs
+  currentInputTexts.value = inputTexts
 }
 
 // ensure inputs are in sync when players change during game
@@ -176,7 +180,10 @@ watch(
   () => session.value.players.map((p) => p.id).join(','),
   () => {
     session.value.players.forEach((p) => {
-      if (!(p.id in currentInputs.value)) currentInputs.value[p.id] = 0
+      if (!(p.id in currentInputs.value)) {
+        currentInputs.value[p.id] = 0
+        currentInputTexts.value[p.id] = '0'
+      }
     })
   },
 )
@@ -214,12 +221,30 @@ const allInputsZero = computed(() =>
 const canConfirm = computed(() => isBalanced.value && !allInputsZero.value)
 
 function changeInput(playerId: string, delta: number) {
-  currentInputs.value[playerId] = (currentInputs.value[playerId] ?? 0) + delta
+  const nextValue = (currentInputs.value[playerId] ?? 0) + delta
+  currentInputs.value[playerId] = nextValue
+  currentInputTexts.value[playerId] = String(nextValue)
 }
 
 function setInput(playerId: string, val: string) {
-  const n = parseInt(val, 10)
+  const normalized = val.replace(/[−–—]/g, '-')
+  const hasMinus = normalized.includes('-')
+  const digits = normalized.replace(/\D/g, '')
+  const nextText = `${hasMinus ? '-' : ''}${digits}`
+
+  currentInputTexts.value[playerId] = nextText
+
+  if (nextText === '' || nextText === '-') {
+    currentInputs.value[playerId] = 0
+    return
+  }
+
+  const n = parseInt(nextText, 10)
   currentInputs.value[playerId] = isNaN(n) ? 0 : n
+}
+
+function commitInput(playerId: string) {
+  currentInputTexts.value[playerId] = String(currentInputs.value[playerId] ?? 0)
 }
 
 function confirmRound() {
@@ -267,6 +292,7 @@ function removePlayer(id: string) {
   session.value.players = session.value.players.filter((p) => p.id !== id)
   session.value.rounds.forEach((r) => delete r[id])
   delete currentInputs.value[id]
+  delete currentInputTexts.value[id]
 }
 
 function openAddPlayer() {
@@ -288,6 +314,7 @@ function addPlayerDuringGame() {
     r[p.id] = 0
   })
   currentInputs.value[p.id] = 0
+  currentInputTexts.value[p.id] = '0'
   newPlayerName.value = ''
 }
 
@@ -626,12 +653,17 @@ const MEDAL = ['🥇', '🥈', '🥉']
                 <Icon icon="lucide:minus" :class="iconSizeClass" />
               </button>
               <input
-                type="number"
-                inputmode="numeric"
-                :value="currentInputs[p.id] ?? 0"
+                type="text"
+                inputmode="text"
+                pattern="-?[0-9]*"
+                autocomplete="off"
+                autocorrect="off"
+                :value="currentInputTexts[p.id] ?? '0'"
                 class="border border-border-default bg-bg-elevated text-center font-display font-semibold text-text-primary focus:border-accent-coral focus:outline-none py-1 transition"
                 :class="inputWidthClass"
                 @input="(e) => setInput(p.id, (e.target as HTMLInputElement).value)"
+                @focus="(e) => (e.target as HTMLInputElement).select()"
+                @blur="commitInput(p.id)"
               />
               <button
                 class="border border-border-default bg-bg-surface flex items-center justify-center text-text-secondary hover:border-accent-sky hover:text-accent-sky transition active:scale-95 select-none"
