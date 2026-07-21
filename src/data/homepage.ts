@@ -30,8 +30,10 @@ export const homepageTechItems: HomepageTechItem[] = [
 export const homepageProjectLinks: HomepageProjectLink[] = [
   { name: 'comcogiang.io.vn', url: 'https://comcogiang.io.vn/' },
   { name: 'halife.vn', url: 'https://halife.vn/' },
+  { name: 'lehr.io.vn', url: 'https://lehr.io.vn/' },
   { name: 'mgf.com.vn', url: 'https://mgf.com.vn/' },
   { name: 'quangminhtna.vn', url: 'https://quangminhtna.vn/' },
+  { name: 'sushi-furstenau.de', url: 'https://sushi-furstenau.de/' },
   { name: 'greenq.vn', url: 'https://greenq.vn/' },
 ]
 
