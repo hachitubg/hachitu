@@ -2,6 +2,8 @@
 
 html {
   scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 @theme {
@@ -25,6 +27,46 @@ body {
   font-family: var(--font-body);
   background-color: var(--color-bg-deep);
   color: var(--color-text-primary);
+  overflow-x: clip;
+}
+
+body,
+#app {
+  min-height: 100vh;
+  min-height: 100svh;
+}
+
+.min-h-screen {
+  min-height: 100vh;
+  min-height: 100svh;
+}
+
+.h-screen {
+  height: 100vh;
+  height: 100svh;
+}
+
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+a,
+button,
+[role='button'],
+input,
+select,
+textarea {
+  touch-action: manipulation;
+}
+
+@media (pointer: coarse) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
 }
 
 body::after {
