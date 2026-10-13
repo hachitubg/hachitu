@@ -30,6 +30,8 @@ import type { ColorAdjustments } from './utils/color'
 import { loadLut } from './utils/lut'
 import type { LutTexture } from './utils/lut'
 import { analyzeColor } from './utils/auto-color'
+import { panFraming } from './utils/crop'
+import type { Framing } from './utils/crop'
 import { useBackground } from './composables/useBackground'
 
 const canvas = ref<HTMLCanvasElement>()
@@ -112,9 +114,144 @@ function deleteRecipe(id: string) {
 const ratio = ref(3 / 4)
 const grid = ref(false)
 const comparing = ref(false)
+const cropEditing = ref(false)
+const cropRatioKey = ref('original')
+function setCropRatio(value: number, key: string) {
+  ratio.value = value
+  cropRatioKey.value = key
+  cropPointers.clear()
+  cropGesture = undefined
+}
+const cropBefore = shallowRef<{ ratio: number; framing: Framing }>()
+const cropPointers = new Map<number, { x: number; y: number }>()
+let cropGesture: { x: number; y: number; distance: number; framing: Framing } | undefined
+function sourceAspect() {
+  if (mode.value === 'video' && clip.value?.videoWidth)
+    return clip.value.videoWidth / clip.value.videoHeight
+  const source = still.value
+  if (source)
+    return source instanceof HTMLImageElement
+      ? source.naturalWidth / source.naturalHeight
+      : source.width / source.height
+  return ratio.value
+}
+function startCropGesture() {
+  const points = [...cropPointers.values()]
+  if (!points[0]) {
+    cropGesture = undefined
+    return
+  }
+  cropGesture = {
+    x: points[0].x,
+    y: points[0].y,
+    distance: points[1] ? Math.hypot(points[1].x - points[0].x, points[1].y - points[0].y) : 0,
+    framing: { ...framing },
+  }
+}
+function finishCrop(cancel = false) {
+  if (cancel && cropBefore.value) {
+    ratio.value = cropBefore.value.ratio
+    Object.assign(framing, cropBefore.value.framing)
+  }
+  cropEditing.value = false
+  cropBefore.value = undefined
+  cropPointers.clear()
+  cropGesture = undefined
+}
+function beginCrop() {
+  closeSheet()
+  comparing.value = false
+  clip.value?.pause()
+  cropBefore.value = { ratio: ratio.value, framing: { ...framing } }
+  cropRatioKey.value =
+    ratio.value === sourceAspect()
+      ? 'original'
+      : ratio.value === 3 / 4
+        ? '3:4'
+        : ratio.value === 1
+          ? '1:1'
+          : ratio.value === 4 / 3
+            ? '4:3'
+            : ratio.value === 9 / 16
+              ? '9:16'
+              : 'custom'
+  cropEditing.value = true
+  void nextTick(() => stage.value?.focus({ preventScroll: true }))
+}
+function toggleOriginal() {
+  comparing.value = !comparing.value
+}
+useEventListener(stage, 'pointerdown', (event: PointerEvent) => {
+  if (!cropEditing.value || saving.value || recording.value || !stage.value) return
+  if (event.target instanceof HTMLElement && event.target.closest('button,a,input')) return
+  cropPointers.set(event.pointerId, { x: event.clientX, y: event.clientY })
+  stage.value.setPointerCapture(event.pointerId)
+  startCropGesture()
+  event.preventDefault()
+})
+useEventListener(stage, 'pointermove', (event: PointerEvent) => {
+  if (!cropEditing.value || !cropPointers.has(event.pointerId) || !cropGesture || !canvas.value)
+    return
+  cropPointers.set(event.pointerId, { x: event.clientX, y: event.clientY })
+  const points = [...cropPointers.values()]
+  if (points[1] && points[0] && cropGesture.distance > 0) {
+    framing.zoom = Math.max(
+      1,
+      Math.min(
+        3,
+        (cropGesture.framing.zoom *
+          Math.hypot(points[1].x - points[0].x, points[1].y - points[0].y)) /
+          cropGesture.distance,
+      ),
+    )
+  } else {
+    const frame = canvas.value.getBoundingClientRect()
+    Object.assign(
+      framing,
+      panFraming(
+        cropGesture.framing,
+        event.clientX - cropGesture.x,
+        event.clientY - cropGesture.y,
+        frame.width,
+        frame.height,
+        sourceAspect(),
+        ratio.value,
+      ),
+    )
+  }
+})
+useEventListener(
+  stage,
+  ['pointerup', 'pointercancel', 'lostpointercapture'],
+  (event: PointerEvent) => {
+    cropPointers.delete(event.pointerId)
+    startCropGesture()
+  },
+)
 const facing = ref<'user' | 'environment'>('environment')
+useEventListener(stage, 'keydown', (event: KeyboardEvent) => {
+  if (!cropEditing.value || event.target !== stage.value || !canvas.value) return
+  const moves: Record<string, [number, number]> = {
+    ArrowLeft: [-10, 0],
+    ArrowRight: [10, 0],
+    ArrowUp: [0, -10],
+    ArrowDown: [0, 10],
+  }
+  const move = moves[event.key]
+  if (move) {
+    event.preventDefault()
+    const frame = canvas.value.getBoundingClientRect()
+    Object.assign(
+      framing,
+      panFraming(framing, move[0], move[1], frame.width, frame.height, sourceAspect(), ratio.value),
+    )
+  }
+})
 const mode = ref<'demo' | 'camera' | 'photo' | 'video'>('demo')
 const area = ref<'camera' | 'studio'>('camera')
+watch([selected, mode, area], () => {
+  comparing.value = false
+})
 const studioMode = ref<'demo' | 'photo' | 'video'>('demo')
 const freshCapture = ref(false)
 const cameraSettings = shallowRef({ look: looks[0]!, strength: 100, ratio: 3 / 4 })
@@ -324,6 +461,7 @@ watch(
 )
 
 function resetEdits() {
+  finishCrop()
   autoPrevious.value = undefined
   autoReport.value = ''
   blurEnabled.value = false
@@ -350,6 +488,7 @@ function switchArea(next: 'camera' | 'studio') {
   if (next === area.value || busy.value || saving.value || recording.value || eraseBusy.value)
     return
   finishErase()
+  finishCrop()
   closeSheet()
   stop()
   clip.value?.pause()
@@ -382,6 +521,11 @@ function openStudioImport() {
 }
 function openTool(next: Tool) {
   if (area.value === 'camera' && next !== 'color') return
+  comparing.value = false
+  if (next === 'crop') {
+    beginCrop()
+    return
+  }
   tool.value = next
   if (next === 'background') blurEnabled.value = false
   if (next === 'blur') {
@@ -528,6 +672,7 @@ function dismissBackdrop(event: MouseEvent) {
     closeSheet()
 }
 function resetCrop() {
+  if (cropEditing.value) setCropRatio(sourceAspect(), 'original')
   Object.assign(framing, { zoom: 1, x: 0, y: 0 })
 }
 function deleteText() {
@@ -582,6 +727,7 @@ function undoAuto() {
 }
 let drag: { id: number; startX: number; startY: number; x: number; y: number } | undefined
 useEventListener(overlay, 'pointerdown', (event: PointerEvent) => {
+  if (cropEditing.value || comparing.value) return
   if (eraseMode.value && !eraseBusy.value && !tool.value && overlay.value) {
     overlay.value.setPointerCapture(event.pointerId)
     paintErase(event)
@@ -838,6 +984,7 @@ watch(uploadUrl, async (url) => {
     clip.value?.pause()
     resetEdits()
     still.value = raw
+    ratio.value = raw.width / raw.height
     preserveAlpha.value = upload.value?.type === 'image/png'
     photoMirrored.value = false
     mode.value = 'photo'
@@ -942,13 +1089,12 @@ async function savePhoto() {
 function selectLook(id: string) {
   selected.value = looks.find((item) => item.id === id) ?? looks[0]!
 }
-useEventListener(window, 'pointerup', () => {
-  comparing.value = false
-})
-useEventListener(window, 'blur', () => {
-  comparing.value = false
-})
 useEventListener(window, 'keydown', (event: KeyboardEvent) => {
+  if (cropEditing.value && event.key === 'Escape') {
+    event.preventDefault()
+    finishCrop(true)
+    return
+  }
   if (
     event.key !== ' ' ||
     event.repeat ||
@@ -1045,7 +1191,7 @@ onScopeDispose(() => {
         <button
           v-if="mode === 'photo' || mode === 'video'"
           class="top-save"
-          :disabled="busy || saving || eraseMode || eraseBusy || lutLoading"
+          :disabled="busy || saving || eraseMode || eraseBusy || lutLoading || cropEditing"
           @click="recording ? stopRecording(true) : saveMedia()"
         >
           <Icon
@@ -1088,19 +1234,24 @@ onScopeDispose(() => {
       <main
         ref="stage"
         class="camera-stage"
+        :tabindex="cropEditing ? 0 : -1"
+        :aria-label="cropEditing ? 'Kéo trong hoặc ngoài ảnh để crop.' : 'Khung hiển thị ảnh'"
         :class="{
+          'crop-active': cropEditing,
           'transparent-bg':
             area === 'studio' &&
             backgroundEffect?.color === null &&
             backgroundEffect.blur === undefined,
         }"
       >
-        <div class="media-frame" :style="frameStyle">
+        <div class="media-frame" :class="{ 'is-cropping': cropEditing }" :style="frameStyle">
           <canvas ref="canvas" class="photo-canvas" aria-label="Ảnh xem trước với màu đã chọn" />
           <canvas
             ref="overlay"
             class="text-overlay"
-            :class="{ draggable: area === 'studio' && (decorations.text || eraseMode) }"
+            :class="{
+              draggable: !cropEditing && area === 'studio' && (decorations.text || eraseMode),
+            }"
             aria-label="Chữ trên ảnh, kéo để thay đổi vị trí"
           />
           <video ref="video" muted playsinline class="hidden-video" aria-hidden="true" />
@@ -1112,7 +1263,9 @@ onScopeDispose(() => {
             class="hidden-video"
             aria-hidden="true"
           />
-          <div v-if="grid" class="composition-grid" aria-hidden="true"><i /><i /><i /><i /></div>
+          <div v-if="grid || cropEditing" class="composition-grid" aria-hidden="true">
+            <i /><i /><i /><i />
+          </div>
           <div v-if="mode === 'demo'" class="camera-start">
             <span class="start-mark"><Icon icon="lucide:aperture" class="size-10" /></span>
             <h1>
@@ -1153,7 +1306,7 @@ onScopeDispose(() => {
               ><i v-if="mode === 'camera'" />{{
                 mode === 'camera' ? 'LIVE' : mode === 'video' ? 'VIDEO' : 'ẢNH'
               }}</span
-            ><span>{{ selected.name }}</span>
+            ><span>{{ comparing ? 'Ảnh gốc' : selected.name }}</span>
           </div>
         </div>
         <button
@@ -1190,7 +1343,7 @@ onScopeDispose(() => {
             ><Icon icon="lucide:chevron-up" class="size-4" /></button
           ><span>{{ looks.length }} màu</span>
         </div>
-        <div v-else-if="!eraseMode" class="tool-shortcuts">
+        <div v-else-if="!eraseMode && !cropEditing" class="tool-shortcuts">
           <button :disabled="recording || saving" @click="openTool('color')">
             <Icon icon="lucide:palette" class="size-5" /><span>Màu</span>
           </button>
@@ -1207,16 +1360,14 @@ onScopeDispose(() => {
           <button
             :disabled="recording || saving"
             class="compare-shortcut"
-            aria-label="Giữ để xem ảnh gốc"
-            @pointerdown.prevent="comparing = true"
-            @pointercancel="comparing = false"
-            @keydown.space.prevent="comparing = true"
-            @keyup.space.prevent="comparing = false"
-            @keydown.enter.prevent="comparing = true"
-            @keyup.enter.prevent="comparing = false"
-            @blur="comparing = false"
+            :aria-label="comparing ? 'Quay lại ảnh chỉnh sửa' : 'Xem ảnh gốc'"
+            :aria-pressed="comparing"
+            @click="toggleOriginal"
+            @contextmenu.prevent
           >
-            <Icon icon="lucide:split-square-horizontal" class="size-5" /><span>Ảnh gốc</span>
+            <Icon icon="lucide:split-square-horizontal" class="size-5" /><span>{{
+              comparing ? 'Ảnh chỉnh' : 'Ảnh gốc'
+            }}</span>
           </button>
         </div>
         <div v-if="area === 'camera'" class="shutter-row">
@@ -1275,7 +1426,7 @@ onScopeDispose(() => {
             class="size-4"
           />
         </button>
-        <div v-if="area === 'studio' && !eraseMode" class="studio-source-row">
+        <div v-if="area === 'studio' && !eraseMode && !cropEditing" class="studio-source-row">
           <button :disabled="busy || recording || saving" @click="chooseImage">
             <Icon icon="lucide:image-plus" class="size-5" />{{
               mode === 'demo' ? 'Chọn ảnh / video' : 'Đổi ảnh / video'
@@ -1304,15 +1455,63 @@ onScopeDispose(() => {
             ><button :disabled="eraseBusy" @click="finishErase">Xong</button>
           </div>
         </div>
+        <div v-if="cropEditing" class="crop-dock">
+          <div class="crop-dock-top">
+            <strong>Chỉnh khung ảnh</strong
+            ><button @click="resetCrop">
+              <Icon icon="lucide:rotate-ccw" class="size-4" />Đặt lại
+            </button>
+          </div>
+          <div class="ratio-choices">
+            <button
+              :aria-pressed="cropRatioKey === 'original'"
+              :class="{ active: cropRatioKey === 'original' }"
+              @click="setCropRatio(sourceAspect(), 'original')"
+            >
+              Gốc</button
+            ><button
+              v-for="option in [
+                { label: '3:4', value: 3 / 4 },
+                { label: '1:1', value: 1 },
+                { label: '4:3', value: 4 / 3 },
+                { label: '9:16', value: 9 / 16 },
+              ]"
+              :key="option.label"
+              :aria-pressed="cropRatioKey === option.label"
+              :class="{ active: cropRatioKey === option.label }"
+              @click="setCropRatio(option.value, option.label)"
+            >
+              {{ option.label }}
+            </button>
+          </div>
+          <label class="slider-label" for="crop-zoom"
+            >Phóng to<span>{{ framing.zoom.toFixed(1) }}×</span></label
+          ><input
+            id="crop-zoom"
+            v-model.number="framing.zoom"
+            type="range"
+            min="1"
+            max="3"
+            step=".05"
+          />
+          <div class="crop-dock-actions">
+            <button @click="finishCrop(true)">Hủy</button
+            ><button class="crop-confirm" @click="finishCrop()">
+              <Icon icon="lucide:check" class="size-4" />Xong
+            </button>
+          </div>
+        </div>
         <p class="dock-hint">
           {{
-            mode === 'video'
-              ? 'Clip tối đa 60 giây · Xuất không tiếng'
-              : area === 'studio' && decorations.text
-                ? 'Kéo chữ trên ảnh để đổi vị trí'
-                : mode === 'camera'
-                  ? 'Chạm nút tròn để giữ khoảnh khắc'
-                  : 'Ảnh của bạn. Sắc màu của bạn.'
+            cropEditing
+              ? 'Kéo cả trong/ngoài ảnh · Chụm 2 ngón để zoom'
+              : mode === 'video'
+                ? 'Clip tối đa 60 giây · Xuất không tiếng'
+                : area === 'studio' && decorations.text
+                  ? 'Kéo chữ trên ảnh để đổi vị trí'
+                  : mode === 'camera'
+                    ? 'Chạm nút tròn để giữ khoảnh khắc'
+                    : 'Ảnh của bạn. Sắc màu của bạn.'
           }}
         </p>
       </footer>
@@ -1404,7 +1603,7 @@ onScopeDispose(() => {
                 {{ background.enabled.value ? 'Tắt mờ hậu cảnh' : 'Bật mờ hậu cảnh' }}
               </button>
               <p class="makeup-note">
-                Hiệu ứng chân dung giữ người rõ nét. Tóc và vật che khuất có thể chưa hoàn hảo; giữ
+                Hiệu ứng chân dung giữ người rõ nét. Tóc và vật che khuất có thể chưa hoàn hảo; bấm
                 Ảnh gốc để so sánh.
               </p></template
             ></template
@@ -1579,7 +1778,7 @@ onScopeDispose(() => {
                 </div>
               </fieldset>
               <p class="makeup-note">
-                Bấm Xong, giữ Ảnh gốc để so sánh. Mịn da làm dịu khuyết điểm nhỏ; chưa có xóa từng
+                Bấm Xong, bấm Ảnh gốc để so sánh. Mịn da làm dịu khuyết điểm nhỏ; chưa có xóa từng
                 nốt mụn.
               </p>
             </template>
@@ -1679,7 +1878,7 @@ onScopeDispose(() => {
                   placeholder="Đặt tên màu của bạn…"
                 /><button :disabled="!recipeName.trim()">Lưu màu</button>
               </form>
-              <p>Giữ Ảnh gốc để so sánh. Công thức được lưu trên thiết bị này.</p>
+              <p>Bấm Ảnh gốc để so sánh. Công thức được lưu trên thiết bị này.</p>
             </details>
             <details class="lut-credits">
               <summary>Nguồn màu film</summary>
@@ -1812,59 +2011,6 @@ onScopeDispose(() => {
               </button>
             </div>
           </template>
-
-          <template v-if="tool === 'crop'">
-            <div class="ratio-choices" aria-label="Tỷ lệ khung ảnh">
-              <button
-                v-for="option in [
-                  { label: '3:4', value: 3 / 4 },
-                  { label: '1:1', value: 1 },
-                  { label: '4:3', value: 4 / 3 },
-                  { label: '9:16', value: 9 / 16 },
-                ]"
-                :key="option.label"
-                :class="{ active: ratio === option.value }"
-                :aria-pressed="ratio === option.value"
-                @click="ratio = option.value"
-              >
-                <Icon icon="lucide:crop" class="size-4" />{{ option.label }}
-              </button>
-            </div>
-            <label class="slider-label" for="crop-zoom"
-              >Phóng to <span>{{ framing.zoom.toFixed(1) }}×</span></label
-            ><input
-              id="crop-zoom"
-              v-model.number="framing.zoom"
-              type="range"
-              min="1"
-              max="3"
-              step=".05"
-            />
-            <label class="slider-label" for="crop-x">Dịch ngang</label
-            ><input
-              id="crop-x"
-              v-model.number="framing.x"
-              type="range"
-              min="-1"
-              max="1"
-              step=".02"
-            />
-            <label class="slider-label" for="crop-y">Dịch dọc</label
-            ><input
-              id="crop-y"
-              v-model.number="framing.y"
-              type="range"
-              min="-1"
-              max="1"
-              step=".02"
-            />
-            <div class="crop-bottom">
-              <span>Giữ lại phần bạn muốn nhớ.</span
-              ><button @click="resetCrop">
-                <Icon icon="lucide:rotate-ccw" class="size-4" />Đặt lại
-              </button>
-            </div>
-          </template>
         </div>
       </dialog>
       <input
@@ -1885,6 +2031,72 @@ onScopeDispose(() => {
   color: var(--color-text-primary);
   display: grid;
   place-items: center;
+}
+.crop-dock-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  margin: 0 0 8px;
+}
+.crop-dock-top button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  color: var(--color-accent-coral);
+  font-size: 11px;
+}
+.crop-dock .ratio-choices {
+  gap: 5px;
+  margin-bottom: 8px;
+}
+.crop-dock-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+}
+.crop-dock-actions button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex: 1;
+  min-height: 44px;
+  border: 1px solid var(--color-border-default);
+  font-size: 12px;
+}
+.crop-dock-actions .crop-confirm {
+  background: var(--color-accent-coral);
+  color: var(--color-bg-surface);
+  border-color: var(--color-accent-coral);
+}
+.camera-stage.crop-active {
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: grab;
+  outline: none;
+}
+.camera-stage.crop-active:active {
+  cursor: grabbing;
+}
+.media-frame.is-cropping::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 2px solid var(--color-accent-coral);
+  pointer-events: none;
+}
+.compare-shortcut {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: manipulation;
+}
+.compare-shortcut[aria-pressed='true'] {
+  color: var(--color-accent-coral);
 }
 .auto-color-row {
   display: flex;
@@ -2237,7 +2449,7 @@ onScopeDispose(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--color-text-primary);
+  background: var(--color-bg-deep);
   overflow: hidden;
 }
 .workspace-switch {

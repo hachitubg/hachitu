@@ -1,7 +1,7 @@
 # HACHI Studio
 
 Route: `/hachi-studio`. Camera trước/sau, chụp ảnh, nhập ảnh, 63 preset riêng và 12 LUT film thực,
-độ mạnh 0–100%, tỷ lệ 3:4 / 1:1 / 4:3, lưới bố cục và giữ xem ảnh gốc. Không có hẹn giờ.
+độ mạnh 0–100%, tỷ lệ 3:4 / 1:1 / 4:3, lưới bố cục và bấm bật/tắt ảnh gốc. Không có hẹn giờ.
 
 ## Xử lý ảnh
 
@@ -19,7 +19,7 @@ cạnh dài 2560px; tỷ lệ được crop ở giữa. Camera trước được
 - Safari iPhone và Chrome Android: cấp/từ chối quyền, đổi camera, chụp và lưu JPEG.
 - Nhập JPEG/PNG/WebP; định dạng khác phụ thuộc khả năng decode của trình duyệt.
 - 0% phải giống ảnh gốc. Màu khi xem trước phải giống màu JPEG xuất.
-- Desktop và mobile: bộ màu cuộn, tỷ lệ ảnh, lưới, giữ xem gốc và input file.
+- Desktop và mobile: bộ màu cuộn, tỷ lệ ảnh, lưới, bấm xem gốc và input file.
 - Camera cần HTTPS hoặc localhost. WebGL cần được bật trên thiết bị.
 
 ## Chỉnh sửa và video
@@ -54,7 +54,7 @@ cạnh dài 2560px; tỷ lệ được crop ở giữa. Camera trước được
 
 - Studio > Màu > Tự chỉnh màu: phơi sáng, tương phản, bão hòa, ấm/lạnh, tint, fade, sắc nét, tối góc.
 - Custom áp sau preset và Makeup; cùng tham số khi xem trước và xuất. Camera không áp custom của Studio.
-- Đặt lại custom giữ preset đang chọn. Đổi ảnh reset custom. Giữ ảnh gốc tạm bỏ màu/Makeup/custom để so sánh.
+- Đặt lại custom giữ preset đang chọn. Đổi ảnh reset custom. Bấm ảnh gốc tạm bỏ màu/Makeup/custom để so sánh; bấm lần nữa quay lại ảnh chỉnh.
 - Lưu tối đa 20 công thức trên thiết bị bằng VueUse localStorage; công thức gồm preset, độ mạnh và custom.
 - 12 preset mới: Film cổ điển, Nghệ thuật, Cinema. Các preset hiện tại là công thức HACHITU, không phải LUT hãng.
 - Nguồn LUT tham khảo: https://github.com/andreavolpato/spektrafilm và https://github.com/YahiaAngelo/Film-Luts
@@ -89,3 +89,13 @@ cạnh dài 2560px; tỷ lệ được crop ở giữa. Camera trước được
 - Mức 0–100%, preset Nhẹ 20 / Chân dung 45 / Đậm 80, có bật/tắt. 0% giữ nguyên ảnh.
 - Preview và file lưu cùng bộ xử lý. Blur giữ nền và xuất JPEG với nguồn JPEG; cutout trong suốt vẫn xuất PNG.
 - Đây là hiệu ứng chân dung mô phỏng, không đo khoảng cách quang học và chưa hỗ trợ chọn mọi loại chủ thể như đồ vật/hoa.
+
+## Hiển thị ảnh và crop trực tiếp
+
+- Ảnh nhập giữ tỷ lệ gốc; vùng trống dùng nền sáng, không kéo giãn ảnh hoặc tự che bớt ảnh để lấp khung.
+- Studio > Công cụ > Crop vào chế độ riêng, không mở modal che hoặc chặn ảnh.
+- Có thể kéo trên toàn vùng stage, kể cả vùng ngoài ảnh. Pointer capture giữ cử chỉ xuyên suốt; chụm hai ngón zoom 1–3x. Cơ chế chặn lộ vùng rỗng khi pan.
+- Có tỷ lệ Gốc, 3:4, 1:1, 4:3, 9:16; đặt lại, Xong, Hủy. Hủy/Escape khôi phục tỷ lệ và framing trước khi crop.
+- Khi zoom 1x và toàn bộ ảnh vừa khung, không còn vùng dư để pan; phóng to hoặc đổi tỷ lệ để dịch khung.
+- Nút Ảnh gốc dùng click và aria-pressed; không còn nhấn giữ, chặn callout/chọn chữ trên nút.
+- Kiểm thử: `pnpm test:unit --run src/views/hachi-studio/utils/crop.test.ts`.
