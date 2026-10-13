@@ -2,6 +2,7 @@ import { onScopeDispose, ref, shallowRef } from 'vue'
 export interface BackgroundEffect {
   mask: HTMLCanvasElement
   color: string | null
+  blur?: number
 }
 interface SegmentResult {
   confidenceMasks?: Array<{ width: number; height: number; getAsFloat32Array(): Float32Array }>

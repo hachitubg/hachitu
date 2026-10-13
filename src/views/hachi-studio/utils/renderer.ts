@@ -22,7 +22,8 @@ uniform vec4 grade; uniform vec3 extra; uniform vec2 crop; uniform vec2 offset; 
 uniform sampler2D faceMask; uniform vec4 beauty; uniform vec4 cheeks;
 uniform vec2 reshape; uniform vec2 pixel; uniform vec3 lipColor; uniform vec3 blushColor;
 uniform vec4 adjustment; uniform vec4 finish; uniform vec2 texel;
-uniform sampler2D backgroundMask; uniform vec2 backgroundMode; uniform vec3 backgroundColor;
+uniform sampler2D backgroundMask; uniform vec3 backgroundMode; uniform vec3 backgroundColor;
+uniform vec2 blurRadius;
 void main(){
   vec2 p=(uv-0.5)*crop+0.5+offset;
   p.x=mix(p.x,1.0-p.x,mirror);
@@ -35,6 +36,19 @@ void main(){
   vec3 original=texture2D(image,p).rgb;
   vec3 mask=texture2D(faceMask,p).rgb;
   vec3 base=original;
+  float foreground=texture2D(backgroundMask,p).r;
+  if(backgroundMode.z>0.5 && blurRadius.x>0.0 && foreground<0.999){
+    vec3 backgroundSum=vec3(0.0);float backgroundWeights=0.0;
+    for(int i=0;i<24;i++){
+      float angle=float(i)*2.399963;
+      float distance=sqrt((float(i)+0.5)/24.0);
+      vec2 samplePoint=clamp(p+vec2(cos(angle),sin(angle))*blurRadius*distance,0.0,1.0);
+      float weight=(1.0-texture2D(backgroundMask,samplePoint).r)*exp(-distance*distance*1.5);
+      backgroundSum+=texture2D(image,samplePoint).rgb*weight;backgroundWeights+=weight;
+    }
+    vec3 blurred=backgroundWeights>0.001?backgroundSum/backgroundWeights:original;
+    base=mix(blurred,base,foreground);
+  }
   if(beauty.x>0.0 && mask.r>0.0){
     vec3 sum=original; float weights=1.0;
     for(int i=0;i<8;i++){
@@ -65,12 +79,12 @@ void main(){
   graded=graded*(1.0-finish.y)+finish.y*0.5;
   if(finish.z>0.0){
     vec3 blur=(texture2D(image,p+vec2(texel.x,0.0)).rgb+texture2D(image,p-vec2(texel.x,0.0)).rgb+texture2D(image,p+vec2(0.0,texel.y)).rgb+texture2D(image,p-vec2(0.0,texel.y)).rgb)*0.25;
-    graded+=(original-blur)*finish.z*0.7;
+    graded+=(original-blur)*finish.z*0.7*(backgroundMode.z>0.5?foreground:1.0);
   }
   graded*=1.0-smoothstep(0.22,0.72,length(uv-0.5))*finish.w*0.65;
-  float alpha=(backgroundMode.x>0.5?texture2D(backgroundMask,p).r:1.0)*texture2D(image,p).a;
+  float alpha=(backgroundMode.x>0.5 && backgroundMode.z<0.5?foreground:1.0)*texture2D(image,p).a;
   vec3 outputColor=clamp(graded,0.0,1.0);
-  if(backgroundMode.y>0.5){outputColor=mix(backgroundColor,outputColor,alpha);alpha=1.0;}
+  if(backgroundMode.y>0.5 && backgroundMode.z<0.5){outputColor=mix(backgroundColor,outputColor,alpha);alpha=1.0;}
   gl_FragColor=vec4(outputColor,alpha);
 }`
 
@@ -197,10 +211,17 @@ export function render(
   }
   gl.viewport(0, 0, w, h)
   gl.useProgram(program)
-  gl.uniform2f(
+  gl.uniform3f(
     gl.getUniformLocation(program, 'backgroundMode'),
     background ? 1 : 0,
     background?.color ? 1 : 0,
+    background?.blur !== undefined ? 1 : 0,
+  )
+  const blurAmount = (Math.max(0, Math.min(100, background?.blur ?? 0)) / 100) * 0.035
+  gl.uniform2f(
+    gl.getUniformLocation(program, 'blurRadius'),
+    blurAmount,
+    (blurAmount * width) / height,
   )
   const backgroundRGB = background?.color
     ? [1, 3, 5].map((i) => parseInt(background.color!.slice(i, i + 2), 16) / 255)

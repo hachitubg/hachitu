@@ -69,3 +69,11 @@ cạnh dài 2560px; tỷ lệ được crop ở giữa. Camera trước được
 - Thuật toán inpainting cục bộ lan truyền màu từ biên vào vùng chọn. Hợp chi tiết nhỏ/nền đơn giản; không tái tạo vật lớn bằng AI. Giới hạn vùng chọn tối đa 15% ảnh.
 - Ảnh nguồn trước mỗi lần xóa được giữ để undo. Đổi ảnh hủy worker và reset công cụ; rời trang giải phóng worker/model.
 - Kiểm thử: `pnpm test:unit --run src/views/hachi-studio/utils/inpaint.test.ts`.
+
+## Mờ hậu cảnh và nhóm Công cụ
+
+- Studio gom Crop, Mờ hậu cảnh, Xóa phông, Xóa vật trong nút Công cụ. Có nút quay lại nhóm khi mở công cụ con.
+- Mờ hậu cảnh cho ảnh có người: dùng chung mask MediaPipe với Xóa phông. Giữ foreground rõ và blur phần nền bằng WebGL, lấy mẫu ưu tiên vùng nền để giảm lem chủ thể.
+- Mức 0–100%, preset Nhẹ 20 / Chân dung 45 / Đậm 80, có bật/tắt. 0% giữ nguyên ảnh.
+- Preview và file lưu cùng bộ xử lý. Blur giữ nền và xuất JPEG với nguồn JPEG; cutout trong suốt vẫn xuất PNG.
+- Đây là hiệu ứng chân dung mô phỏng, không đo khoảng cách quang học và chưa hỗ trợ chọn mọi loại chủ thể như đồ vật/hoa.

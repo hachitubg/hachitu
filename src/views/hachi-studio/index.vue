@@ -91,7 +91,8 @@ const studioMode = ref<'demo' | 'photo' | 'video'>('demo')
 const freshCapture = ref(false)
 const cameraSettings = shallowRef({ look: looks[0]!, strength: 100, ratio: 3 / 4 })
 const studioSettings = shallowRef({ look: looks[0]!, strength: 100, ratio: 3 / 4 })
-const tool = ref<'color' | 'crop' | 'text' | 'makeup' | 'background' | 'erase' | null>(null)
+type Tool = 'color' | 'crop' | 'text' | 'makeup' | 'background' | 'erase' | 'blur' | 'tools'
+const tool = ref<Tool | null>(null)
 const toolTitle = computed(() =>
   tool.value === 'color'
     ? 'Màu của khoảnh khắc'
@@ -103,12 +104,22 @@ const toolTitle = computed(() =>
           ? 'Xóa phông'
           : tool.value === 'erase'
             ? 'Xóa vật nhỏ'
-            : 'Chọn khung hình',
+            : tool.value === 'blur'
+              ? 'Mờ hậu cảnh'
+              : tool.value === 'tools'
+                ? 'Công cụ Studio'
+                : 'Chọn khung hình',
 )
 const background = useBackground()
+const blurEnabled = ref(false)
+const blurStrength = ref(45)
 const backgroundEffect = computed(() =>
   background.enabled.value && background.mask.value
-    ? { mask: background.mask.value, color: background.color.value }
+    ? {
+        mask: background.mask.value,
+        color: blurEnabled.value ? null : background.color.value,
+        blur: blurEnabled.value ? blurStrength.value : undefined,
+      }
     : undefined,
 )
 const eraseMode = ref(false)
@@ -283,6 +294,8 @@ watch(
 )
 
 function resetEdits() {
+  blurEnabled.value = false
+  blurStrength.value = 45
   background.reset()
   eraseVersion++
   eraser?.terminate()
@@ -335,10 +348,15 @@ function openStudioImport() {
   switchArea('studio')
   chooseImage()
 }
-function openTool(next: 'color' | 'crop' | 'text' | 'makeup' | 'background' | 'erase') {
+function openTool(next: Tool) {
   if (area.value === 'camera' && next !== 'color') return
   tool.value = next
-  if (next === 'background' && still.value && !background.mask.value)
+  if (next === 'background') blurEnabled.value = false
+  if (next === 'blur') {
+    blurEnabled.value = true
+    if (background.mask.value) background.enabled.value = true
+  }
+  if ((next === 'background' || next === 'blur') && still.value && !background.mask.value)
     void background.remove(still.value)
   if (next === 'makeup' && mode.value === 'photo' && still.value && makeup.status.value === 'idle')
     void makeup.detect(still.value)
@@ -822,7 +840,11 @@ async function savePhoto() {
     ctx?.drawImage(exportOverlay, 0, 0)
     const transparent =
       area.value === 'studio' &&
-      (backgroundEffect.value ? backgroundEffect.value.color === null : preserveAlpha.value)
+      (backgroundEffect.value
+        ? backgroundEffect.value.blur !== undefined
+          ? preserveAlpha.value
+          : backgroundEffect.value.color === null
+        : preserveAlpha.value)
     const blob = await new Promise<Blob | null>((resolve) =>
       output.toBlob(resolve, transparent ? 'image/png' : 'image/jpeg', 0.95),
     )
@@ -949,7 +971,12 @@ onScopeDispose(() => {
       <main
         ref="stage"
         class="camera-stage"
-        :class="{ 'transparent-bg': area === 'studio' && backgroundEffect?.color === null }"
+        :class="{
+          'transparent-bg':
+            area === 'studio' &&
+            backgroundEffect?.color === null &&
+            backgroundEffect.blur === undefined,
+        }"
       >
         <div class="media-frame" :style="frameStyle">
           <canvas ref="canvas" class="photo-canvas" aria-label="Ảnh xem trước với màu đã chọn" />
@@ -1048,15 +1075,6 @@ onScopeDispose(() => {
           <button :disabled="recording || saving" @click="openTool('color')">
             <Icon icon="lucide:palette" class="size-5" /><span>Màu</span>
           </button>
-          <button
-            :disabled="recording || saving || mode !== 'photo'"
-            @click="openTool('background')"
-          >
-            <Icon icon="lucide:scissors" class="size-5" /><span>Xóa phông</span>
-          </button>
-          <button :disabled="recording || saving || mode !== 'photo'" @click="openTool('erase')">
-            <Icon icon="lucide:eraser" class="size-5" /><span>Xóa vật</span>
-          </button>
           <button :disabled="recording || saving || mode !== 'photo'" @click="openTool('makeup')">
             <Icon icon="lucide:sparkles" class="size-5" /><span>Makeup</span
             ><i v-if="makeupReady && makeup.settings.enabled" />
@@ -1064,11 +1082,12 @@ onScopeDispose(() => {
           <button :disabled="recording || saving || mode === 'demo'" @click="openTool('text')">
             <span class="type-icon">Aa</span><span>Chữ</span><i v-if="decorations.text" />
           </button>
-          <button :disabled="recording || saving || mode === 'demo'" @click="openTool('crop')">
-            <Icon icon="lucide:crop" class="size-5" /><span>Crop</span>
+          <button :disabled="recording || saving || mode === 'demo'" @click="openTool('tools')">
+            <Icon icon="lucide:sliders-horizontal" class="size-5" /><span>Công cụ</span>
           </button>
           <button
             :disabled="recording || saving"
+            class="compare-shortcut"
             aria-label="Giữ để xem ảnh gốc"
             @pointerdown.prevent="comparing = true"
             @pointercancel="comparing = false"
@@ -1188,12 +1207,89 @@ onScopeDispose(() => {
       >
         <div class="sheet-grip" aria-hidden="true" />
         <div class="sheet-top">
+          <button
+            v-if="['crop', 'background', 'erase', 'blur'].includes(tool || '')"
+            class="tools-back"
+            aria-label="Về Công cụ"
+            @click="openTool('tools')"
+          >
+            <Icon icon="lucide:arrow-left" class="size-4" />
+          </button>
           <h2 id="sheet-title">{{ toolTitle }}</h2>
           <button class="done-button" @click="closeSheet">
             Xong <Icon icon="lucide:check" class="size-4" />
           </button>
         </div>
         <div class="sheet-content">
+          <template v-if="tool === 'tools'"
+            ><div class="studio-tools-grid">
+              <button @click="openTool('crop')">
+                <Icon icon="lucide:crop" class="size-6" /><strong>Crop</strong
+                ><span>Chọn tỷ lệ, phóng và dịch ảnh</span></button
+              ><button :disabled="mode !== 'photo'" @click="openTool('blur')">
+                <Icon icon="lucide:focus" class="size-6" /><strong>Mờ hậu cảnh</strong
+                ><span>Giữ người nét, làm mờ nền</span></button
+              ><button :disabled="mode !== 'photo'" @click="openTool('background')">
+                <Icon icon="lucide:scissors" class="size-6" /><strong>Xóa phông</strong
+                ><span>Nền trong suốt hoặc màu trơn</span></button
+              ><button :disabled="mode !== 'photo'" @click="openTool('erase')">
+                <Icon icon="lucide:eraser" class="size-6" /><strong>Xóa vật</strong
+                ><span>Tô và xóa các chi tiết nhỏ</span>
+              </button>
+            </div>
+            <p class="makeup-note">
+              Crop dùng được cho ảnh/video. Các công cụ tách nền và xóa vật hiện dành cho ảnh.
+            </p></template
+          >
+          <template v-if="tool === 'blur'"
+            ><div v-if="background.loading.value" class="makeup-loading" role="status">
+              <Icon icon="lucide:loader-circle" class="size-6 animate-spin" /><strong
+                >Đang tìm chủ thể…</strong
+              ><span>Lần đầu cần tải model. Ảnh được xử lý trên thiết bị.</span>
+            </div>
+            <div v-else-if="!background.mask.value" class="makeup-loading" role="status">
+              <Icon icon="lucide:scan-face" class="size-7" /><span>{{
+                background.message.value
+              }}</span
+              ><button class="done-button" @click="retryBackground">Thử lại</button>
+            </div>
+            <template v-else
+              ><p class="blur-intro">Một chút chiều sâu cho ảnh chân dung.</p>
+              <div class="blur-presets">
+                <button
+                  v-for="item in [
+                    { name: 'Nhẹ', value: 20 },
+                    { name: 'Chân dung', value: 45 },
+                    { name: 'Đậm', value: 80 },
+                  ]"
+                  :key="item.value"
+                  :aria-pressed="blurStrength === item.value"
+                  @click="blurStrength = item.value"
+                >
+                  {{ item.name }}
+                </button>
+              </div>
+              <label class="slider-label" for="background-blur"
+                >Độ mờ<span>{{ blurStrength }}%</span></label
+              ><input
+                id="background-blur"
+                v-model.number="blurStrength"
+                type="range"
+                min="0"
+                max="100"
+                :disabled="!background.enabled.value"
+              /><button
+                class="done-button"
+                @click="background.enabled.value = !background.enabled.value"
+              >
+                {{ background.enabled.value ? 'Tắt mờ hậu cảnh' : 'Bật mờ hậu cảnh' }}
+              </button>
+              <p class="makeup-note">
+                Hiệu ứng chân dung giữ người rõ nét. Tóc và vật che khuất có thể chưa hoàn hảo; giữ
+                Ảnh gốc để so sánh.
+              </p></template
+            ></template
+          >
           <template v-if="tool === 'background'">
             <div v-if="background.loading.value" class="makeup-loading" role="status">
               <Icon icon="lucide:loader-circle" class="size-6 animate-spin" /><strong
@@ -1641,6 +1737,64 @@ onScopeDispose(() => {
   color: var(--color-text-primary);
   display: grid;
   place-items: center;
+}
+.studio-tools-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 8px 0 16px;
+}
+.studio-tools-grid button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 18px 14px;
+  text-align: left;
+  min-height: 125px;
+  border: 1px solid var(--color-border-default);
+  background: var(--color-bg-deep);
+}
+.studio-tools-grid svg {
+  color: var(--color-accent-coral);
+}
+.studio-tools-grid strong {
+  font-size: 12px;
+}
+.studio-tools-grid span {
+  font-size: 10px;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+}
+.tools-back {
+  display: grid;
+  place-items: center;
+  min-width: 36px;
+  height: 40px;
+  color: var(--color-text-secondary);
+}
+.blur-intro {
+  font-family: var(--font-display);
+  font-size: 18px;
+  line-height: 1.4;
+  margin: 8px 0 20px;
+}
+.blur-presets {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.blur-presets button {
+  flex: 1;
+  border: 1px solid var(--color-border-default);
+  min-height: 44px;
+  font-size: 12px;
+  padding: 8px;
+}
+.blur-presets button[aria-pressed='true'] {
+  background: var(--color-bg-elevated);
+  color: var(--color-accent-coral);
+  border-color: var(--color-accent-coral);
 }
 .camera-stage.transparent-bg {
   background-color: var(--color-bg-surface);
