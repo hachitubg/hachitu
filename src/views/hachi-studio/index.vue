@@ -27,6 +27,7 @@ import type { Decorations, TextBounds } from './utils/decorations'
 import { useMakeup } from './composables/useMakeup'
 import { colorControls, NEUTRAL_COLOR } from './utils/color'
 import type { ColorAdjustments } from './utils/color'
+import { useBackground } from './composables/useBackground'
 
 const canvas = ref<HTMLCanvasElement>()
 const video = ref<HTMLVideoElement>()
@@ -90,7 +91,7 @@ const studioMode = ref<'demo' | 'photo' | 'video'>('demo')
 const freshCapture = ref(false)
 const cameraSettings = shallowRef({ look: looks[0]!, strength: 100, ratio: 3 / 4 })
 const studioSettings = shallowRef({ look: looks[0]!, strength: 100, ratio: 3 / 4 })
-const tool = ref<'color' | 'crop' | 'text' | 'makeup' | null>(null)
+const tool = ref<'color' | 'crop' | 'text' | 'makeup' | 'background' | 'erase' | null>(null)
 const toolTitle = computed(() =>
   tool.value === 'color'
     ? 'Màu của khoảnh khắc'
@@ -98,8 +99,26 @@ const toolTitle = computed(() =>
       ? 'Thêm một dòng cảm xúc'
       : tool.value === 'makeup'
         ? 'Makeup của bạn'
-        : 'Chọn khung hình',
+        : tool.value === 'background'
+          ? 'Xóa phông'
+          : tool.value === 'erase'
+            ? 'Xóa vật nhỏ'
+            : 'Chọn khung hình',
 )
+const background = useBackground()
+const backgroundEffect = computed(() =>
+  background.enabled.value && background.mask.value
+    ? { mask: background.mask.value, color: background.color.value }
+    : undefined,
+)
+const eraseMode = ref(false)
+const eraseSize = ref(6)
+const eraseMask = shallowRef<HTMLCanvasElement>()
+const eraseHasMask = ref(false)
+const eraseBusy = ref(false)
+const eraseUndo = shallowRef<Array<HTMLCanvasElement | HTMLImageElement>>([])
+let eraser: Worker | undefined
+let eraseVersion = 0
 const makeup = useMakeup()
 const makeupEffect = computed(() =>
   makeup.face.value && makeup.settings.enabled
@@ -139,6 +158,7 @@ const still = shallowRef<HTMLCanvasElement | HTMLImageElement>()
 watch(still, () => makeup.reset())
 const demo = shallowRef<HTMLCanvasElement>()
 const photoMirrored = ref(false)
+const preserveAlpha = ref(false)
 const thumbnails = ref<Record<string, string>>({})
 const upload = shallowRef<Blob>()
 const uploadUrl = useObjectUrl(upload)
@@ -181,6 +201,9 @@ function draw() {
         ? makeupEffect.value
         : undefined,
       area.value === 'studio' && !comparing.value ? adjustments : undefined,
+      area.value === 'studio' && mode.value === 'photo' && !comparing.value
+        ? backgroundEffect.value
+        : undefined,
     )
     if (overlay.value)
       textBounds.value = decorate(
@@ -189,6 +212,33 @@ function draw() {
         canvas.value.height,
         comparing.value || area.value === 'camera' ? { ...decorations, text: '' } : decorations,
       )
+    if (overlay.value && eraseMode.value && eraseMask.value && !comparing.value) {
+      const ctx = overlay.value.getContext('2d')!
+      const cx =
+        Math.min(1, ratio.value / (eraseMask.value.width / eraseMask.value.height)) / framing.zoom
+      const cy =
+        Math.min(1, eraseMask.value.width / eraseMask.value.height / ratio.value) / framing.zoom
+      const left = 0.5 + ((photoMirrored.value ? -1 : 1) * framing.x * (1 - cx)) / 2 - cx / 2
+      const top = 0.5 + (framing.y * (1 - cy)) / 2 - cy / 2
+      ctx.save()
+      ctx.globalAlpha = 0.6
+      if (photoMirrored.value) {
+        ctx.translate(overlay.value.width, 0)
+        ctx.scale(-1, 1)
+      }
+      ctx.drawImage(
+        eraseMask.value,
+        left * eraseMask.value.width,
+        top * eraseMask.value.height,
+        cx * eraseMask.value.width,
+        cy * eraseMask.value.height,
+        0,
+        0,
+        overlay.value.width,
+        overlay.value.height,
+      )
+      ctx.restore()
+    }
     if (recording.value) {
       const ctx = composite.getContext('2d')
       ctx?.drawImage(canvas.value, 0, 0)
@@ -223,6 +273,8 @@ watch(
     area,
     makeupEffect,
     adjustments,
+    backgroundEffect,
+    eraseMode,
   ],
   () => {
     draw()
@@ -231,6 +283,15 @@ watch(
 )
 
 function resetEdits() {
+  background.reset()
+  eraseVersion++
+  eraser?.terminate()
+  eraser = undefined
+  eraseMode.value = false
+  eraseBusy.value = false
+  eraseMask.value = undefined
+  eraseHasMask.value = false
+  eraseUndo.value = []
   resetColor()
   makeup.reset()
   Object.assign(framing, { zoom: 1, x: 0, y: 0 })
@@ -241,7 +302,9 @@ function closeSheet() {
   tool.value = null
 }
 function switchArea(next: 'camera' | 'studio') {
-  if (next === area.value || busy.value || saving.value || recording.value) return
+  if (next === area.value || busy.value || saving.value || recording.value || eraseBusy.value)
+    return
+  finishErase()
   closeSheet()
   stop()
   clip.value?.pause()
@@ -272,11 +335,128 @@ function openStudioImport() {
   switchArea('studio')
   chooseImage()
 }
-function openTool(next: 'color' | 'crop' | 'text' | 'makeup') {
+function openTool(next: 'color' | 'crop' | 'text' | 'makeup' | 'background' | 'erase') {
   if (area.value === 'camera' && next !== 'color') return
   tool.value = next
+  if (next === 'background' && still.value && !background.mask.value)
+    void background.remove(still.value)
   if (next === 'makeup' && mode.value === 'photo' && still.value && makeup.status.value === 'idle')
     void makeup.detect(still.value)
+}
+function retryBackground() {
+  if (still.value) void background.remove(still.value)
+}
+function clearErase() {
+  eraseMask.value?.getContext('2d')?.clearRect(0, 0, eraseMask.value.width, eraseMask.value.height)
+  eraseHasMask.value = false
+  draw()
+}
+function beginErase() {
+  if (!still.value || eraseBusy.value) return
+  const source = still.value
+  if (!eraseMask.value) {
+    const m = document.createElement('canvas')
+    m.width = source instanceof HTMLImageElement ? source.naturalWidth : source.width
+    m.height = source instanceof HTMLImageElement ? source.naturalHeight : source.height
+    eraseMask.value = m
+  }
+  closeSheet()
+  eraseMode.value = true
+  notice.value = 'Tô lên chi tiết cần xóa, rồi bấm Xóa vùng.'
+}
+function finishErase() {
+  clearErase()
+  eraseMode.value = false
+  notice.value = ''
+}
+function undoErase() {
+  const previous = eraseUndo.value[eraseUndo.value.length - 1]
+  if (previous) {
+    eraseUndo.value = eraseUndo.value.slice(0, -1)
+    still.value = previous
+    clearErase()
+  }
+}
+function applyErase() {
+  if (!still.value || !eraseMask.value || !eraseHasMask.value || eraseBusy.value) return
+  const source = still.value,
+    mask = eraseMask.value,
+    request = ++eraseVersion
+  const input = document.createElement('canvas')
+  input.width = mask.width
+  input.height = mask.height
+  const ctx = input.getContext('2d')!
+  ctx.drawImage(source, 0, 0, input.width, input.height)
+  const pixels = ctx.getImageData(0, 0, input.width, input.height)
+  const marked = mask.getContext('2d')!.getImageData(0, 0, mask.width, mask.height)
+  eraser?.terminate()
+  eraser = new Worker(new URL('./utils/inpaint.worker.ts', import.meta.url), { type: 'module' })
+  eraseBusy.value = true
+  error.value = ''
+  notice.value = 'Đang xóa vùng đã tô…'
+  eraser.onmessage = (event: MessageEvent<{ result?: Uint8ClampedArray; error?: string }>) => {
+    if (request !== eraseVersion) return
+    eraseBusy.value = false
+    eraser?.terminate()
+    eraser = undefined
+    if (event.data.error) {
+      error.value = event.data.error
+      notice.value = ''
+      return
+    }
+    if (!event.data.result) return
+    ctx.putImageData(
+      new ImageData(new Uint8ClampedArray(event.data.result), input.width, input.height),
+      0,
+      0,
+    )
+    eraseUndo.value = [...eraseUndo.value.slice(-1), source]
+    still.value = input
+    clearErase()
+    notice.value = 'Đã xóa. Có thể Hoàn tác nếu chưa ưng ý.'
+  }
+  eraser.onerror = () => {
+    eraseBusy.value = false
+    eraser?.terminate()
+    eraser = undefined
+    error.value = 'Không xử lý được vùng này. Hãy thử vùng nhỏ hơn.'
+  }
+  eraser.postMessage(
+    { image: pixels.data, mask: marked.data, width: input.width, height: input.height },
+    [pixels.data.buffer, marked.data.buffer],
+  )
+}
+let erasePoint: { x: number; y: number; id: number } | undefined
+function paintErase(event: PointerEvent) {
+  if (!eraseMask.value || !overlay.value) return
+  const rect = overlay.value.getBoundingClientRect(),
+    u = (event.clientX - rect.left) / rect.width,
+    v = (event.clientY - rect.top) / rect.height
+  const cx =
+    Math.min(1, ratio.value / (eraseMask.value.width / eraseMask.value.height)) / framing.zoom
+  const cy =
+    Math.min(1, eraseMask.value.width / eraseMask.value.height / ratio.value) / framing.zoom
+  let x = (u - 0.5) * cx + 0.5 + (framing.x * (1 - cx)) / 2
+  if (photoMirrored.value) x = 1 - x
+  const y = (v - 0.5) * cy + 0.5 + (framing.y * (1 - cy)) / 2
+  const point = { x: x * eraseMask.value.width, y: y * eraseMask.value.height, id: event.pointerId }
+  const ctx = eraseMask.value.getContext('2d')!
+  ctx.strokeStyle = '#d9654f'
+  ctx.fillStyle = '#d9654f'
+  ctx.lineWidth = (eraseSize.value / 100) * cx * eraseMask.value.width
+  ctx.lineCap = 'round'
+  if (erasePoint) {
+    ctx.beginPath()
+    ctx.moveTo(erasePoint.x, erasePoint.y)
+    ctx.lineTo(point.x, point.y)
+    ctx.stroke()
+  }
+  ctx.beginPath()
+  ctx.arc(point.x, point.y, ctx.lineWidth / 2, 0, Math.PI * 2)
+  ctx.fill()
+  erasePoint = point
+  eraseHasMask.value = true
+  draw()
 }
 function retryMakeup() {
   if (still.value && mode.value === 'photo') void makeup.detect(still.value)
@@ -311,6 +491,12 @@ function saveMedia() {
 }
 let drag: { id: number; startX: number; startY: number; x: number; y: number } | undefined
 useEventListener(overlay, 'pointerdown', (event: PointerEvent) => {
+  if (eraseMode.value && !eraseBusy.value && !tool.value && overlay.value) {
+    overlay.value.setPointerCapture(event.pointerId)
+    paintErase(event)
+    event.preventDefault()
+    return
+  }
   if (!overlay.value || !textBounds.value || tool.value || recording.value || saving.value) return
   const rect = overlay.value.getBoundingClientRect()
   const x = ((event.clientX - rect.left) * overlay.value.width) / rect.width
@@ -328,12 +514,17 @@ useEventListener(overlay, 'pointerdown', (event: PointerEvent) => {
   event.preventDefault()
 })
 useEventListener(overlay, 'pointermove', (event: PointerEvent) => {
+  if (eraseMode.value && erasePoint?.id === event.pointerId && !eraseBusy.value) {
+    paintErase(event)
+    return
+  }
   if (!drag || !overlay.value || event.pointerId !== drag.id) return
   const rect = overlay.value.getBoundingClientRect()
   decorations.x = Math.max(0, Math.min(1, drag.x + (event.clientX - drag.startX) / rect.width))
   decorations.y = Math.max(0, Math.min(1, drag.y + (event.clientY - drag.startY) / rect.height))
 })
 useEventListener(overlay, ['pointerup', 'pointercancel', 'lostpointercapture'], () => {
+  erasePoint = undefined
   drag = undefined
 })
 
@@ -487,6 +678,7 @@ async function switchCamera() {
 }
 
 function capture() {
+  preserveAlpha.value = false
   const source = video.value
   if (mode.value !== 'camera' || !source?.videoWidth || busy.value) return
   const raw = document.createElement('canvas')
@@ -554,6 +746,7 @@ watch(uploadUrl, async (url) => {
     clip.value?.pause()
     resetEdits()
     still.value = raw
+    preserveAlpha.value = upload.value?.type === 'image/png'
     photoMirrored.value = false
     mode.value = 'photo'
     studioMode.value = 'photo'
@@ -617,6 +810,7 @@ async function savePhoto() {
       framing,
       area.value === 'studio' ? makeupEffect.value : undefined,
       area.value === 'studio' ? adjustments : undefined,
+      area.value === 'studio' ? backgroundEffect.value : undefined,
     )
     await document.fonts.ready
     const output = document.createElement('canvas')
@@ -626,8 +820,11 @@ async function savePhoto() {
     ctx?.drawImage(exportCanvas, 0, 0)
     decorate(exportOverlay, output.width, output.height, decorations)
     ctx?.drawImage(exportOverlay, 0, 0)
+    const transparent =
+      area.value === 'studio' &&
+      (backgroundEffect.value ? backgroundEffect.value.color === null : preserveAlpha.value)
     const blob = await new Promise<Blob | null>((resolve) =>
-      output.toBlob(resolve, 'image/jpeg', 0.95),
+      output.toBlob(resolve, transparent ? 'image/png' : 'image/jpeg', 0.95),
     )
     if (!blob) throw new Error('Không thể tạo ảnh.')
     downloadBlob.value = blob
@@ -635,7 +832,7 @@ async function savePhoto() {
     if (!downloadUrl.value) throw new Error('Không thể tải ảnh.')
     const link = document.createElement('a')
     link.href = downloadUrl.value
-    link.download = `HACHI-${selected.value.id}-${Date.now()}.jpg`
+    link.download = `HACHI-${selected.value.id}-${Date.now()}.${transparent ? 'png' : 'jpg'}`
     link.click()
     notice.value = 'Ảnh đã sẵn sàng trong mục tải xuống của trình duyệt.'
   } catch (reason) {
@@ -683,6 +880,8 @@ onMounted(() => {
   }
 })
 onScopeDispose(() => {
+  eraseVersion++
+  eraser?.terminate()
   disposed = true
   importVersion++
   stop()
@@ -707,7 +906,7 @@ onScopeDispose(() => {
         <button
           v-if="mode === 'photo' || mode === 'video'"
           class="top-save"
-          :disabled="busy || saving"
+          :disabled="busy || saving || eraseMode || eraseBusy"
           @click="recording ? stopRecording(true) : saveMedia()"
         >
           <Icon
@@ -747,13 +946,17 @@ onScopeDispose(() => {
         </button>
       </nav>
 
-      <main ref="stage" class="camera-stage">
+      <main
+        ref="stage"
+        class="camera-stage"
+        :class="{ 'transparent-bg': area === 'studio' && backgroundEffect?.color === null }"
+      >
         <div class="media-frame" :style="frameStyle">
           <canvas ref="canvas" class="photo-canvas" aria-label="Ảnh xem trước với màu đã chọn" />
           <canvas
             ref="overlay"
             class="text-overlay"
-            :class="{ draggable: area === 'studio' && decorations.text }"
+            :class="{ draggable: area === 'studio' && (decorations.text || eraseMode) }"
             aria-label="Chữ trên ảnh, kéo để thay đổi vị trí"
           />
           <video ref="video" muted playsinline class="hidden-video" aria-hidden="true" />
@@ -841,9 +1044,18 @@ onScopeDispose(() => {
             ><Icon icon="lucide:chevron-up" class="size-4" /></button
           ><span>{{ looks.length }} màu</span>
         </div>
-        <div v-else class="tool-shortcuts">
+        <div v-else-if="!eraseMode" class="tool-shortcuts">
           <button :disabled="recording || saving" @click="openTool('color')">
             <Icon icon="lucide:palette" class="size-5" /><span>Màu</span>
+          </button>
+          <button
+            :disabled="recording || saving || mode !== 'photo'"
+            @click="openTool('background')"
+          >
+            <Icon icon="lucide:scissors" class="size-5" /><span>Xóa phông</span>
+          </button>
+          <button :disabled="recording || saving || mode !== 'photo'" @click="openTool('erase')">
+            <Icon icon="lucide:eraser" class="size-5" /><span>Xóa vật</span>
           </button>
           <button :disabled="recording || saving || mode !== 'photo'" @click="openTool('makeup')">
             <Icon icon="lucide:sparkles" class="size-5" /><span>Makeup</span
@@ -925,7 +1137,7 @@ onScopeDispose(() => {
             class="size-4"
           />
         </button>
-        <div v-if="area === 'studio'" class="studio-source-row">
+        <div v-if="area === 'studio' && !eraseMode" class="studio-source-row">
           <button :disabled="busy || recording || saving" @click="chooseImage">
             <Icon icon="lucide:image-plus" class="size-5" />{{
               mode === 'demo' ? 'Chọn ảnh / video' : 'Đổi ảnh / video'
@@ -933,6 +1145,26 @@ onScopeDispose(() => {
           ><button :disabled="recording || saving" @click="switchArea('camera')">
             <Icon icon="lucide:camera" class="size-5" />Chụp ảnh mới
           </button>
+        </div>
+        <div v-if="eraseMode" class="erase-dock">
+          <label class="slider-label" for="erase-brush"
+            >Cỡ cọ<span>{{ eraseSize }}%</span></label
+          ><input
+            id="erase-brush"
+            v-model.number="eraseSize"
+            type="range"
+            min="2"
+            max="15"
+            :disabled="eraseBusy"
+          />
+          <div>
+            <button :disabled="eraseBusy || !eraseHasMask" @click="clearErase">Xóa nét tô</button
+            ><button :disabled="eraseBusy || !eraseUndo.length" @click="undoErase">
+              <Icon icon="lucide:undo-2" class="size-4" />Hoàn tác</button
+            ><button :disabled="eraseBusy || !eraseHasMask" class="erase-apply" @click="applyErase">
+              {{ eraseBusy ? 'Đang xử lý…' : 'Xóa vùng' }}</button
+            ><button :disabled="eraseBusy" @click="finishErase">Xong</button>
+          </div>
         </div>
         <p class="dock-hint">
           {{
@@ -962,6 +1194,71 @@ onScopeDispose(() => {
           </button>
         </div>
         <div class="sheet-content">
+          <template v-if="tool === 'background'">
+            <div v-if="background.loading.value" class="makeup-loading" role="status">
+              <Icon icon="lucide:loader-circle" class="size-6 animate-spin" /><strong
+                >Đang tách người khỏi nền…</strong
+              ><span>Lần đầu cần tải model. Ảnh được xử lý trên thiết bị.</span>
+            </div>
+            <template v-else
+              ><p class="makeup-note">
+                {{
+                  background.message.value ||
+                  'Tách người khỏi nền. Phù hợp ảnh chân dung và ảnh toàn thân.'
+                }}
+              </p>
+              <button v-if="!background.mask.value" class="done-button" @click="retryBackground">
+                Thử lại</button
+              ><template v-else
+                ><div class="background-options">
+                  <button
+                    :aria-pressed="background.color.value === null"
+                    @click="background.color.value = null"
+                  >
+                    Trong suốt (PNG)</button
+                  ><button
+                    v-for="item in [
+                      { color: '#fffaf4', name: 'Nền kem' },
+                      { color: '#2f241f', name: 'Nền tối' },
+                      { color: '#d9654f', name: 'Nền coral' },
+                    ]"
+                    :key="item.color"
+                    :aria-pressed="background.color.value === item.color"
+                    @click="background.color.value = item.color"
+                  >
+                    {{ item.name }}
+                  </button>
+                </div>
+                <label class="background-picker"
+                  >Màu nền tùy ý<input
+                    type="color"
+                    :value="background.color.value || '#fffaf4'"
+                    @input="
+                      background.color.value = ($event.target as HTMLInputElement).value
+                    " /></label
+                ><button
+                  class="done-button"
+                  @click="background.enabled.value = !background.enabled.value"
+                >
+                  {{ background.enabled.value ? 'Khôi phục phông gốc' : 'Áp dụng xóa phông' }}
+                </button>
+                <p class="makeup-note">
+                  Nền trong suốt lưu bằng PNG. Tóc, vật che khuất và ánh sáng yếu có thể cần tinh
+                  chỉnh thêm.
+                </p></template
+              ></template
+            >
+          </template>
+          <template v-if="tool === 'erase'"
+            ><div class="makeup-loading">
+              <Icon icon="lucide:eraser" class="size-7" /><strong>Tô chi tiết muốn xóa</strong
+              ><span
+                >Tốt nhất với vết nhỏ, dây hoặc vật nhỏ trên nền đơn giản. Vùng lớn và nền nhiều họa
+                tiết có thể bị nhòe.</span
+              ><button class="done-button" @click="beginErase">
+                Bắt đầu tô<Icon icon="lucide:arrow-right" class="size-4" />
+              </button></div
+          ></template>
           <template v-if="tool === 'makeup'">
             <div v-if="makeup.status.value === 'loading'" class="makeup-loading" role="status">
               <Icon icon="lucide:loader-circle" class="size-6 animate-spin" /><strong
@@ -1345,6 +1642,62 @@ onScopeDispose(() => {
   display: grid;
   place-items: center;
 }
+.camera-stage.transparent-bg {
+  background-color: var(--color-bg-surface);
+  background-image: conic-gradient(
+    var(--color-border-default) 25%,
+    transparent 0 50%,
+    var(--color-border-default) 0 75%,
+    transparent 0
+  );
+  background-size: 20px 20px;
+}
+.background-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 20px 0;
+}
+.background-options button {
+  border: 1px solid var(--color-border-default);
+  padding: 12px 8px;
+  min-height: 44px;
+  font-size: 11px;
+}
+.background-options button[aria-pressed='true'] {
+  color: var(--color-accent-coral);
+  border-color: var(--color-accent-coral);
+  background: var(--color-bg-elevated);
+}
+.background-picker {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  min-height: 44px;
+}
+.background-picker input {
+  width: 48px;
+  height: 32px;
+}
+.erase-dock > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
+.erase-dock button {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 44px;
+  padding: 8px 6px;
+  font-size: 10px;
+}
+.erase-dock .erase-apply {
+  color: var(--color-bg-surface);
+  background: var(--color-accent-coral);
+}
 .custom-grade {
   border-top: 1px solid var(--color-border-default);
   padding-top: 12px;
@@ -1717,7 +2070,9 @@ onScopeDispose(() => {
 }
 .tool-shortcuts {
   display: flex;
-  justify-content: space-evenly;
+  justify-content: flex-start;
+  overflow-x: auto;
+  scrollbar-width: none;
   gap: 8px;
 }
 .tool-shortcuts button {

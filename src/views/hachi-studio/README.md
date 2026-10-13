@@ -59,3 +59,13 @@ cạnh dài 2560px; tỷ lệ được crop ở giữa. Camera trước được
 - 12 preset mới: Film cổ điển, Nghệ thuật, Cinema. Các preset hiện tại là công thức HACHITU, không phải LUT hãng.
 - Nguồn LUT tham khảo: https://github.com/andreavolpato/spektrafilm và https://github.com/YahiaAngelo/Film-Luts
 - Chưa tích hợp LUT bên ngoài. Khi tích hợp phải xác minh giấy phép từng file, giữ attribution và chọn input/output sRGB; LUT Log/ACES không thể dùng trực tiếp cho ảnh thông thường.
+
+## Xóa phông và xóa vật (ảnh tĩnh)
+
+- Xóa phông dùng MediaPipe ImageSegmenter, model selfie_multiclass_256x256 float32 v1. Chỉ tách người (gồm tóc, da, quần áo) khỏi nền; không phải bộ tách mọi loại sản phẩm.
+- SDK/model chỉ tải khi mở công cụ, chạy trên thiết bị. Nền trong suốt xuất PNG; màu nền trơn xuất JPEG. Có nút khôi phục phông gốc.
+- Xóa vật: tô mặt nạ trên preview bằng chuột/ngón tay, chọn cỡ cọ, xóa nét tô, xử lý và hoàn tác tối đa 2 lần.
+- Mặt nạ được ánh xạ về tọa độ ảnh nguồn, có xét crop, zoom và mirror. Xử lý bằng Web Worker.
+- Thuật toán inpainting cục bộ lan truyền màu từ biên vào vùng chọn. Hợp chi tiết nhỏ/nền đơn giản; không tái tạo vật lớn bằng AI. Giới hạn vùng chọn tối đa 15% ảnh.
+- Ảnh nguồn trước mỗi lần xóa được giữ để undo. Đổi ảnh hủy worker và reset công cụ; rời trang giải phóng worker/model.
+- Kiểm thử: `pnpm test:unit --run src/views/hachi-studio/utils/inpaint.test.ts`.

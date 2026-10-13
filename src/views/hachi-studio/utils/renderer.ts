@@ -2,6 +2,7 @@ import type { Look } from '../data/looks'
 import type { MakeupEffect } from '../composables/useMakeup'
 import { NEUTRAL_COLOR } from './color'
 import type { ColorAdjustments } from './color'
+import type { BackgroundEffect } from '../composables/useBackground'
 
 interface Renderer {
   gl: WebGLRenderingContext
@@ -9,6 +10,8 @@ interface Renderer {
   texture: WebGLTexture
   maskTexture: WebGLTexture
   lastMask?: HTMLCanvasElement
+  backgroundTexture: WebGLTexture
+  lastBackground?: HTMLCanvasElement
 }
 const renderers = new WeakMap<HTMLCanvasElement, Renderer>()
 const vertex = `attribute vec2 position; varying vec2 uv;
@@ -19,6 +22,7 @@ uniform vec4 grade; uniform vec3 extra; uniform vec2 crop; uniform vec2 offset; 
 uniform sampler2D faceMask; uniform vec4 beauty; uniform vec4 cheeks;
 uniform vec2 reshape; uniform vec2 pixel; uniform vec3 lipColor; uniform vec3 blushColor;
 uniform vec4 adjustment; uniform vec4 finish; uniform vec2 texel;
+uniform sampler2D backgroundMask; uniform vec2 backgroundMode; uniform vec3 backgroundColor;
 void main(){
   vec2 p=(uv-0.5)*crop+0.5+offset;
   p.x=mix(p.x,1.0-p.x,mirror);
@@ -64,11 +68,18 @@ void main(){
     graded+=(original-blur)*finish.z*0.7;
   }
   graded*=1.0-smoothstep(0.22,0.72,length(uv-0.5))*finish.w*0.65;
-  gl_FragColor=vec4(clamp(graded,0.0,1.0),1.0);
+  float alpha=(backgroundMode.x>0.5?texture2D(backgroundMask,p).r:1.0)*texture2D(image,p).a;
+  vec3 outputColor=clamp(graded,0.0,1.0);
+  if(backgroundMode.y>0.5){outputColor=mix(backgroundColor,outputColor,alpha);alpha=1.0;}
+  gl_FragColor=vec4(outputColor,alpha);
 }`
 
 function createRenderer(canvas: HTMLCanvasElement): Renderer {
-  const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true, alpha: false })
+  const gl = canvas.getContext('webgl', {
+    preserveDrawingBuffer: true,
+    alpha: true,
+    premultipliedAlpha: false,
+  })
   if (!gl)
     throw new Error('Trình duyệt chưa hỗ trợ xử lý màu. Hãy thử Safari hoặc Chrome mới nhất.')
   const program = gl.createProgram()
@@ -124,7 +135,28 @@ function createRenderer(canvas: HTMLCanvasElement): Renderer {
   )
   gl.uniform1i(gl.getUniformLocation(program, 'faceMask'), 1)
   gl.activeTexture(gl.TEXTURE0)
-  const renderer = { gl, program, texture, maskTexture }
+  const backgroundTexture = gl.createTexture()
+  if (!backgroundTexture) throw new Error('Không tạo được bộ xóa phông.')
+  gl.activeTexture(gl.TEXTURE2)
+  gl.bindTexture(gl.TEXTURE_2D, backgroundTexture)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+  gl.texImage2D(
+    gl.TEXTURE_2D,
+    0,
+    gl.RGB,
+    1,
+    1,
+    0,
+    gl.RGB,
+    gl.UNSIGNED_BYTE,
+    new Uint8Array([255, 255, 255]),
+  )
+  gl.uniform1i(gl.getUniformLocation(program, 'backgroundMask'), 2)
+  gl.activeTexture(gl.TEXTURE0)
+  const renderer = { gl, program, texture, maskTexture, backgroundTexture }
   renderers.set(canvas, renderer)
   return renderer
 }
@@ -140,6 +172,7 @@ export function render(
   framing = { zoom: 1, x: 0, y: 0 },
   makeup?: MakeupEffect,
   adjustments: ColorAdjustments = NEUTRAL_COLOR,
+  background?: BackgroundEffect,
 ) {
   const width =
     source instanceof HTMLVideoElement
@@ -164,6 +197,21 @@ export function render(
   }
   gl.viewport(0, 0, w, h)
   gl.useProgram(program)
+  gl.uniform2f(
+    gl.getUniformLocation(program, 'backgroundMode'),
+    background ? 1 : 0,
+    background?.color ? 1 : 0,
+  )
+  const backgroundRGB = background?.color
+    ? [1, 3, 5].map((i) => parseInt(background.color!.slice(i, i + 2), 16) / 255)
+    : [1, 1, 1]
+  gl.uniform3fv(gl.getUniformLocation(program, 'backgroundColor'), backgroundRGB)
+  if (background && renderer.lastBackground !== background.mask) {
+    gl.activeTexture(gl.TEXTURE2)
+    gl.bindTexture(gl.TEXTURE_2D, renderer.backgroundTexture)
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, background.mask)
+    renderer.lastBackground = background.mask
+  }
   gl.uniform4f(
     gl.getUniformLocation(program, 'adjustment'),
     adjustments.exposure,
@@ -181,7 +229,7 @@ export function render(
   gl.uniform2f(gl.getUniformLocation(program, 'texel'), 2 / width, 2 / height)
   gl.activeTexture(gl.TEXTURE0)
   gl.bindTexture(gl.TEXTURE_2D, renderer.texture)
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, source)
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source)
   const settings = makeup?.settings
   const enabled = !!settings?.enabled && !!makeup
   gl.uniform4f(
