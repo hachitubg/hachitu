@@ -148,6 +148,7 @@ function startGame() {
 
 const currentInputs = ref<Record<string, number>>({})
 const currentInputTexts = ref<Record<string, string>>({})
+const editedInputs = ref<Record<string, boolean>>({})
 const deltaFlash = ref<Record<string, number>>({})
 const showHistory = ref(false)
 const showConfigSheet = ref(false)
@@ -165,6 +166,7 @@ const newPlayerName = ref('')
 const newPlayerColor = ref('')
 
 function initInputs() {
+  editedInputs.value = {}
   const inputs: Record<string, number> = {}
   const inputTexts: Record<string, string> = {}
   session.value.players.forEach((p) => {
@@ -220,12 +222,18 @@ const allInputsZero = computed(() =>
 
 const canConfirm = computed(() => isBalanced.value && !allInputsZero.value)
 
-// Keep the balancing player stable even when the leaderboard is sorted by score.
-const balancePlayerId = computed(() =>
-  session.value.config.balanceCheck
-    ? session.value.players[session.value.players.length - 1]?.id
-    : undefined,
-)
+// Default zero is not an entered score. Once edited, even an auto-filled field
+// belongs to the user and must not be overwritten again during this round.
+const balancePlayerId = computed(() => {
+  if (!session.value.config.balanceCheck) return undefined
+  const remaining = session.value.players.filter((player) => !editedInputs.value[player.id])
+  if (remaining.length !== 1) return undefined
+  const allOthersValid = session.value.players.every(
+    (player) =>
+      !editedInputs.value[player.id] || /^-?\d+$/.test(currentInputTexts.value[player.id] ?? ''),
+  )
+  return allOthersValid ? remaining[0]?.id : undefined
+})
 
 watchEffect(() => {
   const playerId = balancePlayerId.value
@@ -241,14 +249,14 @@ watchEffect(() => {
 })
 
 function changeInput(playerId: string, delta: number) {
-  if (playerId === balancePlayerId.value) return
+  editedInputs.value[playerId] = true
   const nextValue = (currentInputs.value[playerId] ?? 0) + delta
   currentInputs.value[playerId] = nextValue
   currentInputTexts.value[playerId] = String(nextValue)
 }
 
 function setInput(playerId: string, val: string) {
-  if (playerId === balancePlayerId.value) return
+  editedInputs.value[playerId] = true
   const normalized = val.replace(/[−–—]/g, '-')
   const hasMinus = normalized.includes('-')
   const digits = normalized.replace(/\D/g, '')
@@ -315,6 +323,7 @@ function removePlayer(id: string) {
   session.value.rounds.forEach((r) => delete r[id])
   delete currentInputs.value[id]
   delete currentInputTexts.value[id]
+  delete editedInputs.value[id]
 }
 
 function openAddPlayer() {
@@ -351,6 +360,10 @@ const finalRanking = computed(() =>
 
 function endGame() {
   session.value.phase = 'ended'
+}
+
+function resumeGame() {
+  session.value.phase = 'playing'
 }
 
 function playAgain() {
@@ -552,7 +565,7 @@ const MEDAL = ['🥇', '🥈', '🥉']
               :class="setupConfig.balanceCheck ? 'translate-x-5' : 'translate-x-0.5'"
             />
           </div>
-          <span class="text-sm text-text-secondary">Tự cân bằng điểm người cuối (tổng = 0)</span>
+          <span class="text-sm text-text-secondary">Tự điền điểm người còn lại (tổng = 0)</span>
         </label>
       </div>
 
@@ -639,7 +652,7 @@ const MEDAL = ['🥇', '🥈', '🥉']
                 {{ p.name }}
               </span>
               <span v-if="p.id === balancePlayerId" class="mt-1 text-xs text-accent-sky">
-                Tự cân bằng
+                Đã tự điền · có thể sửa
               </span>
             </div>
 
@@ -673,7 +686,6 @@ const MEDAL = ['🥇', '🥈', '🥉']
               <button
                 class="border border-border-default bg-bg-surface flex items-center justify-center text-text-secondary hover:border-accent-coral hover:text-accent-coral transition active:scale-95 select-none"
                 :class="btnSizeClass"
-                :disabled="p.id === balancePlayerId"
                 @click="changeInput(p.id, -1)"
               >
                 <Icon icon="lucide:minus" :class="iconSizeClass" />
@@ -685,8 +697,7 @@ const MEDAL = ['🥇', '🥈', '🥉']
                 autocomplete="off"
                 autocorrect="off"
                 :value="currentInputTexts[p.id] ?? '0'"
-                :readonly="p.id === balancePlayerId"
-                :aria-label="`Điểm ván của ${p.name}${p.id === balancePlayerId ? ' (tự cân bằng)' : ''}`"
+                :aria-label="`Điểm ván của ${p.name}`"
                 class="border border-border-default bg-bg-elevated text-center font-display font-semibold text-text-primary focus:border-accent-coral focus:outline-none py-1 transition"
                 :class="inputWidthClass"
                 @input="(e) => setInput(p.id, (e.target as HTMLInputElement).value)"
@@ -696,7 +707,6 @@ const MEDAL = ['🥇', '🥈', '🥉']
               <button
                 class="border border-border-default bg-bg-surface flex items-center justify-center text-text-secondary hover:border-accent-sky hover:text-accent-sky transition active:scale-95 select-none"
                 :class="btnSizeClass"
-                :disabled="p.id === balancePlayerId"
                 @click="changeInput(p.id, 1)"
               >
                 <Icon icon="lucide:plus" :class="iconSizeClass" />
@@ -705,10 +715,7 @@ const MEDAL = ['🥇', '🥈', '🥉']
           </div>
 
           <!-- Hàng dưới: quick buttons full-width -->
-          <div v-if="p.id === balancePlayerId" class="px-3 pb-2.5 pt-0.5 text-xs text-text-dim">
-            Điểm tự động để tổng ván bằng 0.
-          </div>
-          <div v-else class="grid grid-cols-6 gap-1.5 px-3 pb-2.5 pt-0.5">
+          <div class="grid grid-cols-6 gap-1.5 px-3 pb-2.5 pt-0.5">
             <button
               v-for="delta in [-10, -5, -3, 3, 5, 10]"
               :key="delta"
@@ -787,6 +794,14 @@ const MEDAL = ['🥇', '🥈', '🥉']
          END SCREEN
     ════════════════════════════════════════════════════════════════ -->
     <div v-else-if="session.phase === 'ended'" class="max-w-lg mx-auto px-4 py-10">
+      <button
+        type="button"
+        class="mb-5 inline-flex min-h-11 items-center gap-2 border border-border-default bg-bg-surface px-4 py-2 text-sm text-text-secondary transition hover:border-accent-coral hover:text-accent-coral"
+        @click="resumeGame"
+      >
+        <Icon icon="lucide:arrow-left" class="size-4" />
+        Quay lại chơi
+      </button>
       <!-- Exportable card -->
       <div ref="endCardRef" class="bg-bg-surface border border-border-default p-6 mb-6">
         <div class="flex items-center justify-between mb-6">
@@ -1060,9 +1075,9 @@ const MEDAL = ['🥇', '🥈', '🥉']
               </label>
               <label class="flex items-center justify-between cursor-pointer">
                 <div>
-                  <p class="text-sm font-semibold text-text-primary">Tự cân bằng điểm</p>
+                  <p class="text-sm font-semibold text-text-primary">Tự điền điểm cân bằng</p>
                   <p class="text-xs text-text-dim mt-0.5">
-                    Người cuối theo thứ tự thêm được tính điểm tự động để tổng ván bằng 0
+                    Nhập theo thứ tự bất kỳ. Người còn lại được tự điền điểm và vẫn có thể sửa.
                   </p>
                 </div>
                 <div
