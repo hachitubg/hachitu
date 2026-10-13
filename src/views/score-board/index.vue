@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, watchEffect } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useLocalStorage } from '@vueuse/core'
 import { toPng } from 'html-to-image'
@@ -220,13 +220,35 @@ const allInputsZero = computed(() =>
 
 const canConfirm = computed(() => isBalanced.value && !allInputsZero.value)
 
+// Keep the balancing player stable even when the leaderboard is sorted by score.
+const balancePlayerId = computed(() =>
+  session.value.config.balanceCheck
+    ? session.value.players[session.value.players.length - 1]?.id
+    : undefined,
+)
+
+watchEffect(() => {
+  const playerId = balancePlayerId.value
+  if (!playerId) return
+
+  const otherTotal = session.value.players.reduce(
+    (sum, player) => sum + (player.id === playerId ? 0 : (currentInputs.value[player.id] ?? 0)),
+    0,
+  )
+  const score = otherTotal === 0 ? 0 : -otherTotal
+  currentInputs.value[playerId] = score
+  currentInputTexts.value[playerId] = String(score)
+})
+
 function changeInput(playerId: string, delta: number) {
+  if (playerId === balancePlayerId.value) return
   const nextValue = (currentInputs.value[playerId] ?? 0) + delta
   currentInputs.value[playerId] = nextValue
   currentInputTexts.value[playerId] = String(nextValue)
 }
 
 function setInput(playerId: string, val: string) {
+  if (playerId === balancePlayerId.value) return
   const normalized = val.replace(/[−–—]/g, '-')
   const hasMinus = normalized.includes('-')
   const digits = normalized.replace(/\D/g, '')
@@ -530,7 +552,7 @@ const MEDAL = ['🥇', '🥈', '🥉']
               :class="setupConfig.balanceCheck ? 'translate-x-5' : 'translate-x-0.5'"
             />
           </div>
-          <span class="text-sm text-text-secondary">Kiểm tra cân bằng điểm (tổng = 0)</span>
+          <span class="text-sm text-text-secondary">Tự cân bằng điểm người cuối (tổng = 0)</span>
         </label>
       </div>
 
@@ -616,6 +638,9 @@ const MEDAL = ['🥇', '🥈', '🥉']
               >
                 {{ p.name }}
               </span>
+              <span v-if="p.id === balancePlayerId" class="mt-1 text-xs text-accent-sky">
+                Tự cân bằng
+              </span>
             </div>
 
             <!-- Giữa: điểm + delta -->
@@ -648,6 +673,7 @@ const MEDAL = ['🥇', '🥈', '🥉']
               <button
                 class="border border-border-default bg-bg-surface flex items-center justify-center text-text-secondary hover:border-accent-coral hover:text-accent-coral transition active:scale-95 select-none"
                 :class="btnSizeClass"
+                :disabled="p.id === balancePlayerId"
                 @click="changeInput(p.id, -1)"
               >
                 <Icon icon="lucide:minus" :class="iconSizeClass" />
@@ -659,6 +685,8 @@ const MEDAL = ['🥇', '🥈', '🥉']
                 autocomplete="off"
                 autocorrect="off"
                 :value="currentInputTexts[p.id] ?? '0'"
+                :readonly="p.id === balancePlayerId"
+                :aria-label="`Điểm ván của ${p.name}${p.id === balancePlayerId ? ' (tự cân bằng)' : ''}`"
                 class="border border-border-default bg-bg-elevated text-center font-display font-semibold text-text-primary focus:border-accent-coral focus:outline-none py-1 transition"
                 :class="inputWidthClass"
                 @input="(e) => setInput(p.id, (e.target as HTMLInputElement).value)"
@@ -668,6 +696,7 @@ const MEDAL = ['🥇', '🥈', '🥉']
               <button
                 class="border border-border-default bg-bg-surface flex items-center justify-center text-text-secondary hover:border-accent-sky hover:text-accent-sky transition active:scale-95 select-none"
                 :class="btnSizeClass"
+                :disabled="p.id === balancePlayerId"
                 @click="changeInput(p.id, 1)"
               >
                 <Icon icon="lucide:plus" :class="iconSizeClass" />
@@ -676,7 +705,10 @@ const MEDAL = ['🥇', '🥈', '🥉']
           </div>
 
           <!-- Hàng dưới: quick buttons full-width -->
-          <div class="grid grid-cols-6 gap-1.5 px-3 pb-2.5 pt-0.5">
+          <div v-if="p.id === balancePlayerId" class="px-3 pb-2.5 pt-0.5 text-xs text-text-dim">
+            Điểm tự động để tổng ván bằng 0.
+          </div>
+          <div v-else class="grid grid-cols-6 gap-1.5 px-3 pb-2.5 pt-0.5">
             <button
               v-for="delta in [-10, -5, -3, 3, 5, 10]"
               :key="delta"
@@ -1028,8 +1060,10 @@ const MEDAL = ['🥇', '🥈', '🥉']
               </label>
               <label class="flex items-center justify-between cursor-pointer">
                 <div>
-                  <p class="text-sm font-semibold text-text-primary">Kiểm tra cân bằng điểm</p>
-                  <p class="text-xs text-text-dim mt-0.5">Tổng điểm mỗi ván phải bằng 0</p>
+                  <p class="text-sm font-semibold text-text-primary">Tự cân bằng điểm</p>
+                  <p class="text-xs text-text-dim mt-0.5">
+                    Người cuối theo thứ tự thêm được tính điểm tự động để tổng ván bằng 0
+                  </p>
                 </div>
                 <div
                   class="w-10 h-5 rounded-full transition-colors relative shrink-0"
