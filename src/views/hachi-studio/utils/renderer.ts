@@ -3,6 +3,7 @@ import type { MakeupEffect } from '../composables/useMakeup'
 import { NEUTRAL_COLOR } from './color'
 import type { ColorAdjustments } from './color'
 import type { BackgroundEffect } from '../composables/useBackground'
+import type { LutTexture } from './lut'
 
 interface Renderer {
   gl: WebGLRenderingContext
@@ -12,11 +13,13 @@ interface Renderer {
   lastMask?: HTMLCanvasElement
   backgroundTexture: WebGLTexture
   lastBackground?: HTMLCanvasElement
+  lutTexture: WebGLTexture
+  lastLut?: HTMLImageElement
 }
 const renderers = new WeakMap<HTMLCanvasElement, Renderer>()
 const vertex = `attribute vec2 position; varying vec2 uv;
 void main(){uv=(position+1.0)*0.5;gl_Position=vec4(position,0.0,1.0);}`
-const fragment = `precision mediump float;
+const fragment = `precision highp float;
 varying vec2 uv; uniform sampler2D image;
 uniform vec4 grade; uniform vec3 extra; uniform vec2 crop; uniform vec2 offset; uniform float mirror;
 uniform sampler2D faceMask; uniform vec4 beauty; uniform vec4 cheeks;
@@ -24,6 +27,21 @@ uniform vec2 reshape; uniform vec2 pixel; uniform vec3 lipColor; uniform vec3 bl
 uniform vec4 adjustment; uniform vec4 finish; uniform vec2 texel;
 uniform sampler2D backgroundMask; uniform vec3 backgroundMode; uniform vec3 backgroundColor;
 uniform vec2 blurRadius;
+uniform sampler2D colorLut;uniform vec3 lutInfo;
+uniform vec2 tone;
+vec3 lutPoint(vec3 point){
+  float index=point.x+point.y*lutInfo.x+point.z*lutInfo.x*lutInfo.x;
+  vec2 cell=vec2(mod(index,lutInfo.y),floor(index/lutInfo.y));
+  return texture2D(colorLut,vec2((cell.x+0.5)/lutInfo.y,1.0-(cell.y+0.5)/lutInfo.z)).rgb;
+}
+vec3 applyLut(vec3 color){
+  vec3 point=clamp(color,0.0,1.0)*(lutInfo.x-1.0),lo=floor(point),hi=min(lo+1.0,vec3(lutInfo.x-1.0)),f=fract(point);
+  vec3 a=mix(lutPoint(vec3(lo.x,lo.y,lo.z)),lutPoint(vec3(hi.x,lo.y,lo.z)),f.x);
+  vec3 b=mix(lutPoint(vec3(lo.x,hi.y,lo.z)),lutPoint(vec3(hi.x,hi.y,lo.z)),f.x);
+  vec3 c=mix(lutPoint(vec3(lo.x,lo.y,hi.z)),lutPoint(vec3(hi.x,lo.y,hi.z)),f.x);
+  vec3 d=mix(lutPoint(vec3(lo.x,hi.y,hi.z)),lutPoint(vec3(hi.x,hi.y,hi.z)),f.x);
+  return mix(mix(a,b,f.y),mix(c,d,f.y),f.z);
+}
 void main(){
   vec2 p=(uv-0.5)*crop+0.5+offset;
   p.x=mix(p.x,1.0-p.x,mirror);
@@ -70,6 +88,7 @@ void main(){
   c=mix(vec3(l),c,grade.z);
   c+=vec3(grade.w*0.12+extra.x*0.04,-extra.x*0.07,-grade.w*0.12+extra.x*0.04);
   c=c*(1.0-extra.y)+extra.y*0.5;
+  if(lutInfo.x>1.0)c=applyLut(base);
   vec3 graded=mix(base,clamp(c,0.0,1.0),extra.z);
   graded*=exp2(adjustment.x);
   graded=(graded-0.5)*(1.0+adjustment.y)+0.5;
@@ -77,6 +96,9 @@ void main(){
   graded=mix(vec3(gray),graded,1.0+adjustment.z);
   graded+=vec3(adjustment.w*0.12+finish.x*0.04,-finish.x*0.07,-adjustment.w*0.12+finish.x*0.04);
   graded=graded*(1.0-finish.y)+finish.y*0.5;
+  float toneLight=dot(graded,vec3(0.2126,0.7152,0.0722));
+  graded+=vec3(tone.x*0.25*(1.0-smoothstep(0.0,0.55,toneLight)));
+  graded+=vec3(tone.y*0.20*smoothstep(0.45,1.0,toneLight));
   if(finish.z>0.0){
     vec3 blur=(texture2D(image,p+vec2(texel.x,0.0)).rgb+texture2D(image,p-vec2(texel.x,0.0)).rgb+texture2D(image,p+vec2(0.0,texel.y)).rgb+texture2D(image,p-vec2(0.0,texel.y)).rgb)*0.25;
     graded+=(original-blur)*finish.z*0.7*(backgroundMode.z>0.5?foreground:1.0);
@@ -170,7 +192,28 @@ function createRenderer(canvas: HTMLCanvasElement): Renderer {
   )
   gl.uniform1i(gl.getUniformLocation(program, 'backgroundMask'), 2)
   gl.activeTexture(gl.TEXTURE0)
-  const renderer = { gl, program, texture, maskTexture, backgroundTexture }
+  const lutTexture = gl.createTexture()
+  if (!lutTexture) throw new Error('Không khởi tạo được bảng màu.')
+  gl.activeTexture(gl.TEXTURE3)
+  gl.bindTexture(gl.TEXTURE_2D, lutTexture)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+  gl.texImage2D(
+    gl.TEXTURE_2D,
+    0,
+    gl.RGB,
+    1,
+    1,
+    0,
+    gl.RGB,
+    gl.UNSIGNED_BYTE,
+    new Uint8Array([0, 0, 0]),
+  )
+  gl.uniform1i(gl.getUniformLocation(program, 'colorLut'), 3)
+  gl.activeTexture(gl.TEXTURE0)
+  const renderer = { gl, program, texture, maskTexture, backgroundTexture, lutTexture }
   renderers.set(canvas, renderer)
   return renderer
 }
@@ -187,6 +230,7 @@ export function render(
   makeup?: MakeupEffect,
   adjustments: ColorAdjustments = NEUTRAL_COLOR,
   background?: BackgroundEffect,
+  lut?: LutTexture,
 ) {
   const width =
     source instanceof HTMLVideoElement
@@ -211,6 +255,23 @@ export function render(
   }
   gl.viewport(0, 0, w, h)
   gl.useProgram(program)
+  gl.uniform3f(
+    gl.getUniformLocation(program, 'lutInfo'),
+    lut?.grid ?? 0,
+    lut?.image.naturalWidth ?? 1,
+    lut?.image.naturalHeight ?? 1,
+  )
+  gl.uniform2f(
+    gl.getUniformLocation(program, 'tone'),
+    (adjustments.shadows ?? 0) / 100,
+    (adjustments.highlights ?? 0) / 100,
+  )
+  if (lut && renderer.lastLut !== lut.image) {
+    gl.activeTexture(gl.TEXTURE3)
+    gl.bindTexture(gl.TEXTURE_2D, renderer.lutTexture)
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, lut.image)
+    renderer.lastLut = lut.image
+  }
   gl.uniform3f(
     gl.getUniformLocation(program, 'backgroundMode'),
     background ? 1 : 0,

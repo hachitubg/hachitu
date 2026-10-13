@@ -9,6 +9,7 @@ export interface Look {
   warmth: number
   tint: number
   fade: number
+  lut?: string
 }
 
 function look(
@@ -29,6 +30,23 @@ function look(
 // Original HACHITU recipes, intended for normal sRGB camera frames and photos.
 export const looks: Look[] = [
   look('original', 'Original', 'Tự nhiên', 'Giữ trọn sắc màu ban đầu.'),
+  ...[
+    ['portra-160', 'Portra 160', 'Film Pro', 'Chân dung dịu, gam ấm tinh tế.'],
+    ['portra-400', 'Portra 400', 'Film Pro', 'Film đa dụng, màu da nhẹ nhàng.'],
+    ['ektar-100', 'Ektar 100', 'Film Pro', 'Màu đậm, hợp cảnh vật và du lịch.'],
+    ['kodachrome-64', 'Kodachrome 64', 'Film Pro', 'Sắc slide cổ điển giàu tương phản.'],
+    ['agfa-vista', 'Agfa Vista', 'Film Pro', 'Gam màu film đời thường.'],
+    ['fuji-400h', 'Fuji 400H', 'Film Pro', 'Chân dung và gam xanh nhẹ.'],
+    ['teal-orange', 'Teal & Orange', 'Cinema LUT', 'Tách gam ấm và lạnh kiểu điện ảnh.'],
+    ['bleach-bypass', 'Bleach Bypass', 'Cinema LUT', 'Tiết chế màu, tương phản đậm.'],
+    ['crisp-winter', 'Crisp Winter', 'Cinema LUT', 'Tông lạnh, gọn sắc.'],
+    ['late-sunset', 'Late Sunset', 'Cinema LUT', 'Ánh chiều ấm và màu sâu.'],
+    ['tmax-100', 'T-Max 100', 'B&W Pro', 'Đen trắng film, chuyển sắc dịu.'],
+    ['tri-x-400', 'Tri-X 400', 'B&W Pro', 'Đen trắng giàu cá tính.'],
+  ].map(([id, name, group, note]) => ({
+    ...look('lut-' + id, name!, group!, note!),
+    lut: '/hachi-studio/luts/' + id + '.png',
+  })),
   look(
     'archive',
     'Archive 70',

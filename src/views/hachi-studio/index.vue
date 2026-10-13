@@ -27,6 +27,9 @@ import type { Decorations, TextBounds } from './utils/decorations'
 import { useMakeup } from './composables/useMakeup'
 import { colorControls, NEUTRAL_COLOR } from './utils/color'
 import type { ColorAdjustments } from './utils/color'
+import { loadLut } from './utils/lut'
+import type { LutTexture } from './utils/lut'
+import { analyzeColor } from './utils/auto-color'
 import { useBackground } from './composables/useBackground'
 
 const canvas = ref<HTMLCanvasElement>()
@@ -43,6 +46,31 @@ const frameStyle = computed(() => {
 const textBounds = shallowRef<TextBounds>()
 const picker = ref<HTMLInputElement>()
 const selected = ref(looks[0]!)
+const activeLut = shallowRef<LutTexture>()
+const lutLoading = ref(false)
+let lutVersion = 0
+const autoPrevious = shallowRef<ColorAdjustments>()
+const autoReport = ref('')
+watch(
+  () => selected.value.lut,
+  async (path) => {
+    const version = ++lutVersion
+    activeLut.value = undefined
+    lutLoading.value = !!path
+    if (!path) return
+    try {
+      const lut = await loadLut(path)
+      if (version === lutVersion && !disposed) activeLut.value = lut
+    } catch {
+      if (version === lutVersion) {
+        error.value = 'Không tải được màu film. Hãy thử lại.'
+        selected.value = looks[0]!
+      }
+    } finally {
+      if (version === lutVersion) lutLoading.value = false
+    }
+  },
+)
 const group = ref('Tất cả')
 const strength = ref(100)
 const adjustments = reactive<ColorAdjustments>({ ...NEUTRAL_COLOR })
@@ -76,7 +104,7 @@ function saveRecipe() {
 function applyRecipe(recipe: ColorRecipe) {
   selectLook(recipe.lookId)
   strength.value = recipe.strength
-  Object.assign(adjustments, recipe.adjustments)
+  Object.assign(adjustments, NEUTRAL_COLOR, recipe.adjustments)
 }
 function deleteRecipe(id: string) {
   recipes.value = recipes.value.filter((recipe) => recipe.id !== id)
@@ -215,6 +243,7 @@ function draw() {
       area.value === 'studio' && mode.value === 'photo' && !comparing.value
         ? backgroundEffect.value
         : undefined,
+      comparing.value ? undefined : activeLut.value,
     )
     if (overlay.value)
       textBounds.value = decorate(
@@ -286,6 +315,7 @@ watch(
     adjustments,
     backgroundEffect,
     eraseMode,
+    activeLut,
   ],
   () => {
     draw()
@@ -294,6 +324,8 @@ watch(
 )
 
 function resetEdits() {
+  autoPrevious.value = undefined
+  autoReport.value = ''
   blurEnabled.value = false
   blurStrength.value = 45
   background.reset()
@@ -503,9 +535,50 @@ function deleteText() {
   closeSheet()
 }
 function saveMedia() {
+  if (lutLoading.value) return
   closeSheet()
   if (mode.value === 'video') void saveVideo()
   else void savePhoto()
+}
+function autoColor() {
+  if (!still.value || mode.value !== 'photo' || area.value !== 'studio') return
+  const sample = document.createElement('canvas')
+  try {
+    render(
+      sample,
+      still.value,
+      selected.value,
+      strength.value / 100,
+      ratio.value,
+      256,
+      photoMirrored.value,
+      framing,
+      makeupEffect.value,
+      NEUTRAL_COLOR,
+      backgroundEffect.value,
+      activeLut.value,
+    )
+    const analysis = document.createElement('canvas')
+    analysis.width = sample.width
+    analysis.height = sample.height
+    const ctx = analysis.getContext('2d')!
+    ctx.drawImage(sample, 0, 0)
+    const result = analyzeColor(ctx.getImageData(0, 0, analysis.width, analysis.height).data)
+    autoPrevious.value = { ...adjustments }
+    Object.assign(adjustments, result.adjustments)
+    autoReport.value = 'Đã cân sáng, tương phản và màu nhẹ. Bạn vẫn có thể chỉnh tiếp.'
+  } catch (reason) {
+    error.value = reason instanceof Error ? reason.message : 'Chưa phân tích được ảnh.'
+  } finally {
+    dispose(sample)
+  }
+}
+function undoAuto() {
+  if (autoPrevious.value) {
+    Object.assign(adjustments, autoPrevious.value)
+    autoPrevious.value = undefined
+    autoReport.value = 'Đã hoàn tác cân màu tự động.'
+  }
 }
 let drag: { id: number; startX: number; startY: number; x: number; y: number } | undefined
 useEventListener(overlay, 'pointerdown', (event: PointerEvent) => {
@@ -696,6 +769,7 @@ async function switchCamera() {
 }
 
 function capture() {
+  if (lutLoading.value) return
   preserveAlpha.value = false
   const source = video.value
   if (mode.value !== 'camera' || !source?.videoWidth || busy.value) return
@@ -829,6 +903,7 @@ async function savePhoto() {
       area.value === 'studio' ? makeupEffect.value : undefined,
       area.value === 'studio' ? adjustments : undefined,
       area.value === 'studio' ? backgroundEffect.value : undefined,
+      activeLut.value,
     )
     await document.fonts.ready
     const output = document.createElement('canvas')
@@ -891,12 +966,54 @@ onMounted(() => {
   const thumb = document.createElement('canvas')
   try {
     for (const look of looks) {
+      if (look.lut) continue
       render(thumb, demo.value, look, 1, 3 / 4, 110)
       thumbnails.value[look.id] = thumb.toDataURL('image/jpeg', 0.8)
     }
     draw()
   } catch (reason) {
     error.value = reason instanceof Error ? reason.message : 'Không tải được bộ màu.'
+  } finally {
+    dispose(thumb)
+  }
+})
+let thumbnailVersion = 0
+watch([tool, group, still], async () => {
+  if (tool.value !== 'color') return
+  const version = ++thumbnailVersion,
+    source = still.value ?? demo.value
+  if (!source) return
+  const reduced = document.createElement('canvas')
+  const w = source instanceof HTMLImageElement ? source.naturalWidth : source.width,
+    h = source instanceof HTMLImageElement ? source.naturalHeight : source.height
+  const scale = Math.min(1, 256 / Math.max(w, h))
+  reduced.width = Math.round(w * scale)
+  reduced.height = Math.round(h * scale)
+  reduced.getContext('2d')?.drawImage(source, 0, 0, reduced.width, reduced.height)
+  const thumb = document.createElement('canvas')
+  try {
+    for (const look of visibleLooks.value) {
+      if (disposed || version !== thumbnailVersion) return
+      const lut = look.lut ? await loadLut(look.lut) : undefined
+      if (disposed || version !== thumbnailVersion) return
+      render(
+        thumb,
+        reduced,
+        look,
+        1,
+        3 / 4,
+        110,
+        false,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        lut,
+      )
+      thumbnails.value[look.id] = thumb.toDataURL('image/jpeg', 0.8)
+    }
+  } catch {
+    error.value = 'Một số ảnh xem trước màu chưa tải được. Bạn có thể chọn lại màu.'
   } finally {
     dispose(thumb)
   }
@@ -928,7 +1045,7 @@ onScopeDispose(() => {
         <button
           v-if="mode === 'photo' || mode === 'video'"
           class="top-save"
-          :disabled="busy || saving || eraseMode || eraseBusy"
+          :disabled="busy || saving || eraseMode || eraseBusy || lutLoading"
           @click="recording ? stopRecording(true) : saveMedia()"
         >
           <Icon
@@ -1051,8 +1168,10 @@ onScopeDispose(() => {
           }}
           / {{ Math.ceil(clipDuration) }}s
         </button>
-        <div v-if="busy" class="loading-mask" role="status">
-          <Icon icon="lucide:loader-circle" class="size-7 animate-spin" />Đang chuẩn bị…
+        <div v-if="busy || lutLoading" class="loading-mask" role="status">
+          <Icon icon="lucide:loader-circle" class="size-7 animate-spin" />{{
+            lutLoading ? 'Đang tải màu film…' : 'Đang chuẩn bị…'
+          }}
         </div>
       </main>
 
@@ -1466,6 +1585,14 @@ onScopeDispose(() => {
             </template>
           </template>
           <template v-if="tool === 'color'">
+            <div v-if="area === 'studio'" class="auto-color-row">
+              <button :disabled="mode !== 'photo' || busy || lutLoading" @click="autoColor">
+                <Icon icon="lucide:wand-sparkles" class="size-4" />Cân màu tự động</button
+              ><button v-if="autoPrevious" @click="undoAuto">Hoàn tác Auto</button>
+            </div>
+            <p v-if="autoReport && area === 'studio'" class="auto-color-note" role="status">
+              {{ autoReport }}
+            </p>
             <div
               v-if="area === 'studio' && recipes.length"
               class="saved-recipes"
@@ -1553,6 +1680,27 @@ onScopeDispose(() => {
                 /><button :disabled="!recipeName.trim()">Lưu màu</button>
               </form>
               <p>Giữ Ảnh gốc để so sánh. Công thức được lưu trên thiết bị này.</p>
+            </details>
+            <details class="lut-credits">
+              <summary>Nguồn màu film</summary>
+              <p>
+                12 LUT từ RawTherapee Film Simulation: Pat David, Pavlov Dmitry, Michael Ezra. Phân
+                phối qua
+                <a
+                  href="https://github.com/cedeber/hald-clut"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  >cedeber/hald-clut</a
+                >. CC BY-SA 4.0. HACHITU chuyển đổi bảng màu về lưới 32 để tối ưu điện thoại; giữ
+                giấy phép cho dữ liệu phái sinh. Tên film chỉ mô tả kiểu mô phỏng, không phải màu do
+                hãng cung cấp.
+              </p>
+              <a
+                href="/hachi-studio/luts/SOURCE-LICENSE.txt"
+                target="_blank"
+                rel="noopener noreferrer"
+                >Giấy phép và ghi nguồn đầy đủ</a
+              >
             </details>
           </template>
 
@@ -1737,6 +1885,49 @@ onScopeDispose(() => {
   color: var(--color-text-primary);
   display: grid;
   place-items: center;
+}
+.auto-color-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 4px 0 14px;
+}
+.auto-color-row button {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 42px;
+  padding: 10px 12px;
+  font-size: 11px;
+  border: 1px solid var(--color-border-default);
+  color: var(--color-accent-coral);
+  background: var(--color-bg-elevated);
+}
+.auto-color-row button + button {
+  background: transparent;
+}
+.auto-color-note {
+  font-size: 10px;
+  line-height: 1.6;
+  color: var(--color-text-secondary);
+  margin-bottom: 12px;
+}
+.lut-credits {
+  font-size: 10px;
+  line-height: 1.7;
+  color: var(--color-text-dim);
+  margin-top: 16px;
+  border-top: 1px solid var(--color-border-default);
+  padding-top: 12px;
+}
+.lut-credits summary {
+  cursor: pointer;
+  min-height: 36px;
+}
+.lut-credits a {
+  color: var(--color-accent-sky);
+  text-decoration: underline;
 }
 .studio-tools-grid {
   display: grid;

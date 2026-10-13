@@ -1,6 +1,6 @@
 # HACHI Studio
 
-Route: `/hachi-studio`. Camera trước/sau, chụp ảnh, nhập ảnh, 63 preset màu riêng của HACHITU,
+Route: `/hachi-studio`. Camera trước/sau, chụp ảnh, nhập ảnh, 63 preset riêng và 12 LUT film thực,
 độ mạnh 0–100%, tỷ lệ 3:4 / 1:1 / 4:3, lưới bố cục và giữ xem ảnh gốc. Không có hẹn giờ.
 
 ## Xử lý ảnh
@@ -58,7 +58,19 @@ cạnh dài 2560px; tỷ lệ được crop ở giữa. Camera trước được
 - Lưu tối đa 20 công thức trên thiết bị bằng VueUse localStorage; công thức gồm preset, độ mạnh và custom.
 - 12 preset mới: Film cổ điển, Nghệ thuật, Cinema. Các preset hiện tại là công thức HACHITU, không phải LUT hãng.
 - Nguồn LUT tham khảo: https://github.com/andreavolpato/spektrafilm và https://github.com/YahiaAngelo/Film-Luts
-- Chưa tích hợp LUT bên ngoài. Khi tích hợp phải xác minh giấy phép từng file, giữ attribution và chọn input/output sRGB; LUT Log/ACES không thể dùng trực tiếp cho ảnh thông thường.
+- Đã tích hợp 12 LUT sRGB từ `cedeber/hald-clut`, bộ dữ liệu RawTherapee Film Simulation (CC BY-SA 4.0). Ghi nguồn trong giao diện và `public/hachi-studio/luts/`. Không dùng LUT Log/ACES trực tiếp cho ảnh thông thường.
+
+## LUT film thực và Auto Color
+
+- LUT data lấy từ revision `3b3180f82d4dcea1e6e8c5648473539a910d7f49`, chỉ bộ Film Simulation có giấy phép riêng CC BY-SA 4.0, không sao chép code GPL của repo.
+- Nhóm Film Pro, Cinema LUT, B&W Pro gồm 12 LUT. Chuyển Hald sang lưới RGB 32^3 bằng nội suy 3D; PNG atlas 256x128, khoảng 17–94 KB/file.
+- `tools/prepare-luts.mjs` tái tạo asset; không chạy khi build/deploy. Asset đã có trong public, tải khi mở/chọn bộ màu. `utils/lut.ts` cache Image và kiểm tra kích thước.
+- Shader dùng nội suy trilinear và precision highp cho chỉ số LUT. Cùng texture/độ mạnh cho camera, thumbnail, preview và xuất ảnh/video.
+- Thumbnail tạo từ ảnh đang chỉnh (bản nhỏ), không upload ảnh. Khi chọn LUT đang tải, chặn lưu để không xuất sai màu.
+- Studio > Màu > Cân màu tự động: phân tích histogram sau preset/Makeup/crop và bỏ pixel trong suốt. Giới hạn tăng exposure theo vùng sáng 95%, mở vùng tối có chọn lọc; white balance chỉ ước lượng khi có đủ vùng gần trung tính.
+- Custom có thêm Vùng tối/Vùng sáng. Công thức cũ thiếu hai giá trị này được áp với mặc định 0.
+- Auto không gọi API AI, không đo màu thiết bị, không nhận diện ý đồ nghệ thuật. Có Hoàn tác Auto và chỉnh tay sau đó; giữ preset đang chọn.
+- Kiểm thử `pnpm test:unit --run src/views/hachi-studio/utils/auto-color.test.ts`.
 
 ## Xóa phông và xóa vật (ảnh tĩnh)
 

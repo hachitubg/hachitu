@@ -7,6 +7,8 @@ export interface ColorAdjustments {
   fade: number
   sharpness: number
   vignette: number
+  shadows: number
+  highlights: number
 }
 export const NEUTRAL_COLOR: ColorAdjustments = {
   exposure: 0,
@@ -17,10 +19,14 @@ export const NEUTRAL_COLOR: ColorAdjustments = {
   fade: 0,
   sharpness: 0,
   vignette: 0,
+  shadows: 0,
+  highlights: 0,
 }
 export const colorControls = [
   { key: 'exposure', label: 'Phơi sáng', min: -2, max: 2, step: 0.05 },
   { key: 'contrast', label: 'Tương phản', min: -50, max: 50, step: 1 },
+  { key: 'shadows', label: 'Vùng tối', min: -50, max: 50, step: 1 },
+  { key: 'highlights', label: 'Vùng sáng', min: -50, max: 50, step: 1 },
   { key: 'saturation', label: 'Bão hòa', min: -100, max: 100, step: 1 },
   { key: 'warmth', label: 'Ấm / lạnh', min: -100, max: 100, step: 1 },
   { key: 'tint', label: 'Ám xanh / hồng', min: -100, max: 100, step: 1 },
