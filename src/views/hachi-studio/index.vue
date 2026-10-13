@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {
   computed,
+  defineAsyncComponent,
   nextTick,
   onMounted,
   onScopeDispose,
@@ -19,6 +20,7 @@ import {
   useDocumentVisibility,
   useElementSize,
   useLocalStorage,
+  useTimeoutFn,
 } from '@vueuse/core'
 import { groups, looks } from './data/looks'
 import { demoScene, dispose, render } from './utils/renderer'
@@ -33,6 +35,25 @@ import { analyzeColor } from './utils/auto-color'
 import { panFraming } from './utils/crop'
 import type { Framing } from './utils/crop'
 import { useBackground } from './composables/useBackground'
+import { useMouseScroll } from './composables/useMouseScroll'
+
+const CollageStudio = defineAsyncComponent(() => import('./components/CollageStudio.vue'))
+const collageOpen = ref(false)
+const collageVisited = ref(false)
+function openCollage() {
+  finishCrop()
+  closeSheet()
+  stop()
+  clip.value?.pause()
+  collageVisited.value = true
+  collageOpen.value = true
+}
+function closeCollage() {
+  collageOpen.value = false
+  area.value = 'studio'
+  if (mode.value === 'camera') mode.value = still.value ? 'photo' : 'demo'
+  void nextTick(draw)
+}
 
 const canvas = ref<HTMLCanvasElement>()
 const video = ref<HTMLVideoElement>()
@@ -40,6 +61,7 @@ const clip = ref<HTMLVideoElement>()
 const overlay = ref<HTMLCanvasElement>()
 const stage = ref<HTMLElement>()
 const sheet = ref<HTMLDialogElement>()
+useMouseScroll(sheet)
 const { width: stageWidth, height: stageHeight } = useElementSize(stage)
 const frameStyle = computed(() => {
   const width = Math.min(stageWidth.value, stageHeight.value * ratio.value)
@@ -336,6 +358,7 @@ const demo = shallowRef<HTMLCanvasElement>()
 const photoMirrored = ref(false)
 const preserveAlpha = ref(false)
 const thumbnails = ref<Record<string, string>>({})
+const colorAdvanced = ref(false)
 const upload = shallowRef<Blob>()
 const uploadUrl = useObjectUrl(upload)
 const downloadBlob = shallowRef<Blob>()
@@ -427,10 +450,18 @@ function draw() {
 }
 
 let lastFrame = 0
+let previewDirty = false
 useRafFn(({ timestamp }) => {
+  if (visibility.value !== 'visible') return
+  if (previewDirty) {
+    previewDirty = false
+    lastFrame = timestamp
+    draw()
+    return
+  }
   if (
     !['camera', 'video'].includes(mode.value) ||
-    visibility.value !== 'visible' ||
+    (mode.value === 'video' && !clipPlaying.value && !recording.value) ||
     timestamp - lastFrame < (recording.value ? 40 : 65)
   )
     return
@@ -455,7 +486,7 @@ watch(
     activeLut,
   ],
   () => {
-    draw()
+    previewDirty = true
   },
   { flush: 'post', deep: true },
 )
@@ -521,6 +552,10 @@ function openStudioImport() {
 }
 function openTool(next: Tool) {
   if (area.value === 'camera' && next !== 'color') return
+  if (tool.value === next) {
+    closeSheet()
+    return
+  }
   comparing.value = false
   if (next === 'crop') {
     beginCrop()
@@ -657,8 +692,10 @@ function retryMakeup() {
 }
 watch(tool, async (value) => {
   await nextTick()
-  if (value && !sheet.value?.open) sheet.value?.showModal()
-  else if (!value && sheet.value?.open) sheet.value.close()
+  if (value && !sheet.value?.open) {
+    if (value === 'color') sheet.value?.show()
+    else sheet.value?.showModal()
+  } else if (!value && sheet.value?.open) sheet.value.close()
 })
 function dismissBackdrop(event: MouseEvent) {
   if (event.target !== sheet.value || !sheet.value) return
@@ -1090,6 +1127,11 @@ function selectLook(id: string) {
   selected.value = looks.find((item) => item.id === id) ?? looks[0]!
 }
 useEventListener(window, 'keydown', (event: KeyboardEvent) => {
+  if (tool.value && event.key === 'Escape') {
+    event.preventDefault()
+    closeSheet()
+    return
+  }
   if (cropEditing.value && event.key === 'Escape') {
     event.preventDefault()
     finishCrop(true)
@@ -1109,25 +1151,32 @@ useEventListener(window, 'keydown', (event: KeyboardEvent) => {
 
 onMounted(() => {
   demo.value = demoScene()
-  const thumb = document.createElement('canvas')
-  try {
-    for (const look of looks) {
-      if (look.lut) continue
-      render(thumb, demo.value, look, 1, 3 / 4, 110)
-      thumbnails.value[look.id] = thumb.toDataURL('image/jpeg', 0.8)
-    }
-    draw()
-  } catch (reason) {
-    error.value = reason instanceof Error ? reason.message : 'Không tải được bộ màu.'
-  } finally {
-    dispose(thumb)
-  }
+  previewDirty = true
 })
 let thumbnailVersion = 0
-watch([tool, group, still], async () => {
+const thumbnailCache = new Map<string, string>()
+function yieldPreviewWork() {
+  return new Promise<void>((resolve) => {
+    thumbnailYieldResolvers.push(resolve)
+    resumeThumbnailYield()
+  })
+}
+const thumbnailYieldResolvers: (() => void)[] = []
+const { start: resumeThumbnailYield } = useTimeoutFn(
+  () => {
+    thumbnailYieldResolvers.splice(0).forEach((resolve) => resolve())
+  },
+  16,
+  { immediate: false },
+)
+watch(still, () => {
+  thumbnailCache.clear()
+  thumbnails.value = {}
+})
+watch([tool, group, still, demo], async () => {
+  const version = ++thumbnailVersion
   if (tool.value !== 'color') return
-  const version = ++thumbnailVersion,
-    source = still.value ?? demo.value
+  const source = still.value ?? demo.value
   if (!source) return
   const reduced = document.createElement('canvas')
   const w = source instanceof HTMLImageElement ? source.naturalWidth : source.width,
@@ -1139,7 +1188,13 @@ watch([tool, group, still], async () => {
   const thumb = document.createElement('canvas')
   try {
     for (const look of visibleLooks.value) {
-      if (disposed || version !== thumbnailVersion) return
+      await yieldPreviewWork()
+      if (disposed || version !== thumbnailVersion || tool.value !== 'color') return
+      const cached = thumbnailCache.get(look.id)
+      if (cached) {
+        thumbnails.value[look.id] = cached
+        continue
+      }
       const lut = look.lut ? await loadLut(look.lut) : undefined
       if (disposed || version !== thumbnailVersion) return
       render(
@@ -1157,6 +1212,7 @@ watch([tool, group, still], async () => {
         lut,
       )
       thumbnails.value[look.id] = thumb.toDataURL('image/jpeg', 0.8)
+      thumbnailCache.set(look.id, thumbnails.value[look.id]!)
     }
   } catch {
     error.value = 'Một số ảnh xem trước màu chưa tải được. Bạn có thể chọn lại màu.'
@@ -1168,6 +1224,7 @@ onScopeDispose(() => {
   eraseVersion++
   eraser?.terminate()
   disposed = true
+  thumbnailYieldResolvers.splice(0).forEach((resolve) => resolve())
   importVersion++
   stop()
   stopRecording(true)
@@ -1180,7 +1237,8 @@ onScopeDispose(() => {
 
 <template>
   <div class="studio-app font-body">
-    <div class="camera-phone">
+    <CollageStudio v-if="collageVisited" v-show="collageOpen" @close="closeCollage" />
+    <div v-if="!collageOpen" class="camera-phone">
       <header class="app-top">
         <RouterLink to="/" class="chrome-button" aria-label="Về trang chủ"
           ><Icon icon="lucide:arrow-left" class="size-5"
@@ -1213,6 +1271,9 @@ onScopeDispose(() => {
       </header>
 
       <nav class="workspace-switch" aria-label="Chọn không gian">
+        <button :disabled="busy || saving || recording || eraseBusy" @click="openCollage">
+          <Icon icon="lucide:panels-top-left" class="size-4" />Ghép ảnh
+        </button>
         <button
           :aria-pressed="area === 'camera'"
           :class="{ active: area === 'camera' }"
@@ -1519,6 +1580,7 @@ onScopeDispose(() => {
       <dialog
         ref="sheet"
         class="editor-sheet"
+        :class="{ 'color-sheet': tool === 'color', 'color-expanded': colorAdvanced }"
         aria-labelledby="sheet-title"
         @close="closeSheet"
         @click="dismissBackdrop"
@@ -1836,7 +1898,7 @@ onScopeDispose(() => {
                 <span>{{ look.name }}</span>
               </button>
             </div>
-            <p class="look-description">
+            <p v-if="colorAdvanced" class="look-description">
               <strong>{{ selected.name }}</strong
               >{{ selected.note }}
             </p>
@@ -1850,7 +1912,11 @@ onScopeDispose(() => {
               max="100"
               :disabled="selected.id === 'original'"
             />
-            <details v-if="area === 'studio'" class="custom-grade">
+            <details
+              v-if="area === 'studio'"
+              class="custom-grade"
+              @toggle="colorAdvanced = ($event.target as HTMLDetailsElement).open"
+            >
               <summary>
                 <Icon icon="lucide:sliders-horizontal" class="size-4" />Tự chỉnh màu<Icon
                   icon="lucide:chevron-down"
@@ -2786,6 +2852,13 @@ onScopeDispose(() => {
 }
 .editor-sheet[open] {
   animation: sheet-up 0.2s ease-out;
+}
+.color-sheet {
+  max-height: 42dvh;
+  z-index: 5;
+}
+.color-sheet.color-expanded {
+  max-height: 60dvh;
 }
 .editor-sheet::backdrop {
   background: color-mix(in srgb, var(--color-text-primary) 18%, transparent);

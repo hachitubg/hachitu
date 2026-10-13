@@ -99,3 +99,26 @@ cạnh dài 2560px; tỷ lệ được crop ở giữa. Camera trước được
 - Khi zoom 1x và toàn bộ ảnh vừa khung, không còn vùng dư để pan; phóng to hoặc đổi tỷ lệ để dịch khung.
 - Nút Ảnh gốc dùng click và aria-pressed; không còn nhấn giữ, chặn callout/chọn chữ trên nút.
 - Kiểm thử: `pnpm test:unit --run src/views/hachi-studio/utils/crop.test.ts`.
+
+# Tối ưu thao tác và preview
+
+## Ghép ảnh / Photobooth
+
+- Giao diện ghép ảnh vừa một màn hình: ảnh xem trước co giãn theo không gian còn lại; Khung, Tỷ lệ và Nền/viền chỉ mở khi bấm công cụ, không cuộn toàn trang.
+- Kéo tay nắm màu cam giữa các ô bằng chuột hoặc cảm ứng để đổi kích thước ô. Có thể dùng phím mũi tên khi tay nắm được focus. Kéo bên trong ảnh vẫn là căn vị trí ảnh, không thay bố cục.
+- Các ô liền kề dùng chung đường chia; giới hạn kích thước tối thiểu để tránh mất ô/chồng ảnh. Đặt lại ô khôi phục kích thước mẫu nhưng giữ ảnh.
+- Xuất ảnh và camera dùng kích thước ô đã điều chỉnh, không dùng lại tỷ lệ mẫu cố định.
+
+- Mục Ghép ảnh có 16 bố cục cho 2, 3, 4 ảnh; Story 9:16, Post 4:5, vuông và dải Photo strip.
+- Chọn từng ô rồi chọn ảnh hoặc Chụp mới. Camera hiển thị đúng tỷ lệ ô, hỗ trợ camera trước/sau, chụp thủ công từng ảnh, không hẹn giờ.
+- Kéo để căn ảnh, chụm hai ngón, lăn chuột hoặc dùng thanh zoom 1–4×. Giới hạn crop để không lộ khoảng trống trong ô.
+- Tùy chỉnh nền, khoảng cách, viền ngoài; xuất JPEG rộng 1080 px (Story cao 1920 px).
+- Ảnh ghép giữ trong bộ nhớ khi chuyển lại Studio, không lưu sau khi tải lại trang; không upload ảnh hay camera lên server.
+- Mỗi ảnh nhập được giảm cạnh dài xuống tối đa 2000 px để giới hạn RAM. Đổi bố cục giữ ảnh theo thứ tự ô.
+- Thư viện màu và bố cục hỗ trợ kéo ngang bằng chuột; kéo không kích hoạt lựa chọn ngoài ý muốn.
+
+- Chỉ tạo preview màu khi mở thư viện; chia công việc thành từng lượt để không khóa giao diện.
+- Cache preview theo ảnh đang chỉnh, xóa cache khi đổi ảnh; không tạo lại khi mở bảng màu lần nữa.
+- Gộp thay đổi slider theo nhịp màn hình; video đang dừng không render liên tục.
+- Bảng màu không làm tối ảnh, ưu tiên thư viện và độ mạnh. Tùy chỉnh nâng cao vẫn mở riêng.
+- Bấm lại nút công cụ để đóng, hoặc dùng Xong/Escape. Xuất ảnh vẫn giữ chất lượng riêng với preview.

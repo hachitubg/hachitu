@@ -15,6 +15,7 @@ interface Renderer {
   lastBackground?: HTMLCanvasElement
   lutTexture: WebGLTexture
   lastLut?: HTMLImageElement
+  lastImage?: HTMLImageElement
 }
 const renderers = new WeakMap<HTMLCanvasElement, Renderer>()
 const vertex = `attribute vec2 position; varying vec2 uv;
@@ -311,7 +312,11 @@ export function render(
   gl.uniform2f(gl.getUniformLocation(program, 'texel'), 2 / width, 2 / height)
   gl.activeTexture(gl.TEXTURE0)
   gl.bindTexture(gl.TEXTURE_2D, renderer.texture)
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source)
+  // Imported images are immutable; sliders only change uniforms, not texture pixels.
+  if (!(source instanceof HTMLImageElement) || renderer.lastImage !== source) {
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source)
+    renderer.lastImage = source instanceof HTMLImageElement ? source : undefined
+  }
   const settings = makeup?.settings
   const enabled = !!settings?.enabled && !!makeup
   gl.uniform4f(
