@@ -23,6 +23,8 @@ function formatBytes(bytes) {
 }
 
 for (const filePath of files) {
+  // LUT images are numeric color tables; photo quantization corrupts their data.
+  if (filePath.replaceAll('\\', '/').includes('/luts/')) continue
   const { size: beforeSize } = await stat(filePath)
 
   if (beforeSize < MIN_SIZE_BYTES) continue
