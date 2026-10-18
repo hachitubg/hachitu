@@ -1,0 +1,1434 @@
+{
+  "schema_version": "1.0.0",
+  "deck_id": "ultimate_werewolf_vietnamese_93",
+  "deck_name": "Ma Sói Ultimate Deluxe Việt hóa – bộ 93 lá (60 cơ bản + 33 mở rộng)",
+  "language": "vi",
+  "total_physical_cards": 93,
+  "total_base_cards": 60,
+  "total_expansion_cards": 33,
+  "score_convention": {
+    "unit": "điểm cân bằng",
+    "positive": "Nghiêng về Dân làng",
+    "negative": "Nghiêng về phe Sói hoặc bất lợi cho Dân làng",
+    "none": "Không xác định/không có điểm; xem score_formula hoặc ghi chú",
+    "game_balance_note": "Cộng điểm các LÁ ĐƯỢC CHỌN để cân bằng ván, không cộng mọi lá trong hộp. Điểm có thể thay đổi giữa phiên bản."
+  },
+  "team_values": {
+    "village": "Phe Dân làng",
+    "werewolf": "Phe Sói (gồm tay sai)",
+    "vampire": "Phe Ma cà rồng",
+    "switching": "Có thể đổi phe",
+    "independent": "Điều kiện thắng riêng/phe thứ ba",
+    "utility": "Lá phụ trợ không phải nhân vật"
+  },
+  "wake_up_values": {
+    "none": "Không thức dậy để dùng kỹ năng",
+    "first_night": "Đêm đầu",
+    "every_night": "Mỗi đêm",
+    "once_per_game_night": "Một lần trong ván vào ban đêm",
+    "third_night": "Đêm thứ ba",
+    "conditional": "Khi đủ điều kiện",
+    "on_death": "Khi chết",
+    "on_execution": "Khi bị/chuẩn bị xử tử",
+    "automatic": "Tự kích hoạt theo mốc",
+    "on_no_execution": "Khi ban ngày không xử tử",
+    "every_night_after_death": "Sau khi chết vẫn thức dậy",
+    "first_night_then_conditional": "Đêm đầu và khi có điều kiện",
+    "first_night_and_pack": "Đêm đầu và cùng đàn Sói",
+    "every_night_conditional": "Mỗi đêm nếu thỏa điều kiện"
+  },
+  "sources": [
+    {
+      "label": "Danh mục bộ 93 lá Việt hóa",
+      "url": "https://thegioiboardgame.vn/products/ma-soi-ultimate-deluxe-co-ban-5-ban-mo-rong-nhan-vat"
+    },
+    {
+      "label": "Mô tả chức năng cơ bản và 5 mở rộng",
+      "url": "https://thuthuatchoi.com/danh-sach-cac-nhan-vat-trong-ma-soi-ultimate-ultimate-werewolf-deluxe-edition.html"
+    },
+    {
+      "label": "Sách luật Ultimate Edition: điểm và luật vai cơ bản",
+      "url": "https://www.rulespal.com/ultimate-werewolf-ultimate-edition/rulebook"
+    },
+    {
+      "label": "Bảng giá trị vai mở rộng tham khảo",
+      "url": "https://www.scribd.com/document/798272524/Ultimate-Werewolf-Village-Randomizer-V3-0"
+    }
+  ],
+  "important_notes": [
+    "Cấu hình 93 lá là cấu hình bộ Việt hóa của nhà bán lẻ, không đồng nghĩa số lá trong mọi hộp Deluxe chính hãng.",
+    "Trong 60 lá cơ bản có 1 Quản trò và 3 Thẻ trống: 56 lá vai có thể chia cho người chơi.",
+    "Hunting Party ở cấu hình này gồm 9 lá, nhiều gói Hunting Party chỉ gồm 6 lá.",
+    "Điểm là điểm tham khảo dựa trên nguồn Ultimate Edition và danh sách cộng đồng; điểm từng ấn bản có thể khác, đặc biệt Ma cà rồng, Chán đời và các nhân vật độc lập.",
+    "Một vài vai phụ có tên và điều kiện thắng khác nhau giữa bản dịch; trường note_vi giúp quản trò rà soát.",
+    "Với Quái vật Frankenstein, điểm không cố định: +2 nhân số vai đặc biệt theo cách tính của bộ bài."
+  ],
+  "sets": [
+    {
+      "id": "basic",
+      "name_vi": "Cơ bản",
+      "name_en": "Ultimate Werewolf – Bộ cơ bản",
+      "type": "base",
+      "card_count": 60,
+      "unique_role_count": 36,
+      "roles": [
+        {
+          "id": "apprentice_seer",
+          "name_vi": "Tiên tri tập sự",
+          "name_en": "Apprentice Seer",
+          "team": "village",
+          "balance_points": 4,
+          "quantity": 1,
+          "wake_up": "conditional",
+          "ability_vi": "Nếu Tiên tri chết, từ đêm tiếp theo thức dậy thay Tiên tri và mỗi đêm soi một người để biết người đó có phải Ma sói không.",
+          "win_condition_vi": "Thắng cùng phe Dân làng",
+          "notes_vi": "Có luật tùy chọn soi một người hai lần trước khi được kế nhiệm."
+        },
+        {
+          "id": "aura_seer",
+          "name_vi": "Tiên tri chức năng (Tiên tri hào quang)",
+          "name_en": "Aura Seer",
+          "team": "village",
+          "balance_points": 3,
+          "quantity": 1,
+          "wake_up": "every_night",
+          "ability_vi": "Mỗi đêm chọn một người và biết người đó có phải vai đặc biệt (khác Dân làng thường và Ma sói thường) hay không.",
+          "win_condition_vi": "Thắng cùng phe Dân làng",
+          "notes_vi": "Không tiết lộ chính xác tên chức năng."
+        },
+        {
+          "id": "bodyguard",
+          "name_vi": "Bảo vệ",
+          "name_en": "Bodyguard",
+          "team": "village",
+          "balance_points": 3,
+          "quantity": 1,
+          "wake_up": "every_night",
+          "ability_vi": "Mỗi đêm chọn một người để ngăn người đó bị giết trong đêm; không bảo vệ cùng người ở hai đêm liên tiếp.",
+          "win_condition_vi": "Thắng cùng phe Dân làng",
+          "notes_vi": "Giới hạn bảo vệ bản thân theo luật của nhóm chơi."
+        },
+        {
+          "id": "cult_leader",
+          "name_vi": "Kẻ sùng đạo (Trưởng giáo phái)",
+          "name_en": "Cult Leader",
+          "team": "independent",
+          "balance_points": 1,
+          "quantity": 1,
+          "wake_up": "every_night",
+          "ability_vi": "Mỗi đêm bí mật chọn một người để gia nhập giáo phái. Người bị chọn có thể không được biết mình đã gia nhập.",
+          "win_condition_vi": "Thắng cá nhân nếu khi trò chơi kết thúc, tất cả người sống đều đã gia nhập giáo phái.",
+          "notes_vi": "Có thể đồng thắng theo luật gốc; quản trò phải ghi danh sách tín đồ."
+        },
+        {
+          "id": "cupid",
+          "name_vi": "Thần tình yêu",
+          "name_en": "Cupid",
+          "team": "village",
+          "balance_points": -3,
+          "quantity": 1,
+          "wake_up": "first_night",
+          "ability_vi": "Đêm đầu chọn hai người làm cặp đôi (có thể chọn mình). Hai người biết nhau; khi một người chết, người còn lại chết theo.",
+          "win_condition_vi": "Thắng cùng phe Dân làng, trừ các quy tắc thắng riêng của cặp đôi khác phe.",
+          "notes_vi": "Cặp đôi khác phe có thể trở thành phe riêng nếu áp dụng luật gốc."
+        },
+        {
+          "id": "cursed",
+          "name_vi": "Kẻ bị nguyền rủa",
+          "name_en": "Cursed",
+          "team": "switching",
+          "balance_points": -3,
+          "quantity": 1,
+          "wake_up": "conditional",
+          "ability_vi": "Ban đầu thuộc Dân làng và bị soi ra Dân. Nếu Sói cắn, không chết mà chuyển thành Sói từ đêm tiếp theo.",
+          "win_condition_vi": "Thắng theo phe hiện tại.",
+          "notes_vi": "Nếu có Ma cà rồng, có biến thể chuyển thành Ma cà rồng."
+        },
+        {
+          "id": "diseased",
+          "name_vi": "Con bệnh",
+          "name_en": "Diseased",
+          "team": "village",
+          "balance_points": 3,
+          "quantity": 1,
+          "wake_up": "none",
+          "ability_vi": "Nếu bị Sói ăn, Sói không được giết người vào đêm kế tiếp.",
+          "win_condition_vi": "Thắng cùng phe Dân làng",
+          "notes_vi": "Tác dụng khi bị Sói ăn, không áp dụng cho mọi nguyên nhân tử vong."
+        },
+        {
+          "id": "doppelganger",
+          "name_vi": "Người nhân bản",
+          "name_en": "Doppelganger",
+          "team": "switching",
+          "balance_points": -2,
+          "quantity": 1,
+          "wake_up": "first_night_then_conditional",
+          "ability_vi": "Đêm đầu chọn một người. Khi người đó chết, được quản trò báo và thừa hưởng chức năng cùng phe của người đó.",
+          "win_condition_vi": "Thắng theo chức năng và phe đã nhận; trước khi nhận thuộc Dân làng.",
+          "notes_vi": "Không phải lập tức hoán đổi bài với người đang sống."
+        },
+        {
+          "id": "drunk",
+          "name_vi": "Kẻ say rượu",
+          "name_en": "Drunk",
+          "team": "switching",
+          "balance_points": -3,
+          "quantity": 1,
+          "wake_up": "third_night",
+          "ability_vi": "Hai đêm đầu chưa biết vai thật. Đến đêm thứ ba, quản trò cho xem chức năng ẩn đã chuẩn bị trước, từ đó thực hiện vai và phe mới.",
+          "win_condition_vi": "Thắng theo vai thật được tiết lộ.",
+          "notes_vi": "Phải chuẩn bị trước lá chức năng ẩn; cách soi trước đêm thứ ba phụ thuộc luật chơi."
+        },
+        {
+          "id": "ghost",
+          "name_vi": "Hồn ma",
+          "name_en": "Ghost",
+          "team": "village",
+          "balance_points": 2,
+          "quantity": 1,
+          "wake_up": "every_night_after_death",
+          "ability_vi": "Chết vào đêm đầu nhưng mỗi đêm được để lại một chữ cái làm gợi ý cho Dân; không được ghi tên hoặc chữ cái đầu của tên người chơi.",
+          "win_condition_vi": "Thắng cùng phe Dân làng",
+          "notes_vi": "Không được trao đổi bằng lời, điệu bộ khi đã chết."
+        },
+        {
+          "id": "hunter",
+          "name_vi": "Thợ săn",
+          "name_en": "Hunter",
+          "team": "village",
+          "balance_points": 3,
+          "quantity": 1,
+          "wake_up": "on_death",
+          "ability_vi": "Khi chết, có thể chọn một người khác để bắn chết ngay, hoặc không bắn.",
+          "win_condition_vi": "Thắng cùng phe Dân làng",
+          "notes_vi": "Có luật phụ Thợ săn Ma cà rồng nếu có phe Ma cà rồng."
+        },
+        {
+          "id": "lone_wolf",
+          "name_vi": "Sói đơn độc",
+          "name_en": "Lone Wolf",
+          "team": "independent",
+          "balance_points": -5,
+          "quantity": 1,
+          "wake_up": "every_night",
+          "ability_vi": "Thức dậy đi săn cùng Sói nhưng muốn các Sói khác bị loại để giành chiến thắng riêng.",
+          "win_condition_vi": "Thắng cá nhân nếu là người cuối cùng còn sống, hoặc còn thêm một người không thuộc phe Sói, theo luật Ultimate.",
+          "notes_vi": "Là Sói về khả năng săn và soi, nhưng có điều kiện thắng độc lập."
+        },
+        {
+          "id": "lycan",
+          "name_vi": "Người lai Sói",
+          "name_en": "Lycan",
+          "team": "village",
+          "balance_points": -1,
+          "quantity": 1,
+          "wake_up": "none",
+          "ability_vi": "Thuộc phe Dân làng nhưng Tiên tri soi sẽ nhận kết quả là Sói.",
+          "win_condition_vi": "Thắng cùng phe Dân làng",
+          "notes_vi": "Không thức dậy cùng Sói."
+        },
+        {
+          "id": "mason",
+          "name_vi": "Hội Tam điểm",
+          "name_en": "Mason",
+          "team": "village",
+          "balance_points": 2,
+          "quantity": 2,
+          "wake_up": "first_night",
+          "ability_vi": "Đêm đầu các Hội Tam điểm thức dậy để nhận biết nhau.",
+          "win_condition_vi": "Thắng cùng phe Dân làng",
+          "notes_vi": "Bộ Việt hóa có 2 lá. Bản Ultimate có luật phụ hạn chế tiết lộ danh tính Hội Tam điểm."
+        },
+        {
+          "id": "mayor",
+          "name_vi": "Thị trưởng",
+          "name_en": "Mayor",
+          "team": "village",
+          "balance_points": 2,
+          "quantity": 1,
+          "wake_up": "none",
+          "ability_vi": "Lá phiếu khi biểu quyết xử tử được tính thành hai phiếu.",
+          "win_condition_vi": "Thắng cùng phe Dân làng",
+          "notes_vi": "Quản trò bí mật cộng thêm phiếu."
+        },
+        {
+          "id": "minion",
+          "name_vi": "Kẻ phản bội",
+          "name_en": "Minion",
+          "team": "werewolf",
+          "balance_points": -6,
+          "quantity": 1,
+          "wake_up": "first_night",
+          "ability_vi": "Ủng hộ phe Sói và biết phe Sói theo cách điều hành của quản trò, nhưng không tham gia chọn nạn nhân mỗi đêm; Tiên tri soi thường ra Dân.",
+          "win_condition_vi": "Thắng cùng phe Sói",
+          "notes_vi": "Bản dùng lá bài chức năng khác biến thể được Sói bí mật chỉ định một người làm tay sai."
+        },
+        {
+          "id": "old_hag",
+          "name_vi": "Bà già",
+          "name_en": "Old Hag",
+          "team": "village",
+          "balance_points": 1,
+          "quantity": 1,
+          "wake_up": "every_night",
+          "ability_vi": "Mỗi đêm chọn một người khác để bị tạm loại khỏi hoạt động ban ngày hôm sau: không tranh luận hay bỏ phiếu.",
+          "win_condition_vi": "Thắng cùng phe Dân làng",
+          "notes_vi": "Người bị đuổi tạm thời không bị coi là đã chết."
+        },
+        {
+          "id": "pacifist",
+          "name_vi": "Người yêu hòa bình",
+          "name_en": "Pacifist",
+          "team": "village",
+          "balance_points": -2,
+          "quantity": 1,
+          "wake_up": "none",
+          "ability_vi": "Luôn phải bỏ phiếu chống việc xử tử người bị buộc tội.",
+          "win_condition_vi": "Thắng cùng phe Dân làng",
+          "notes_vi": "Điểm âm vì năng lực này thường có lợi cho Sói."
+        },
+        {
+          "id": "pi",
+          "name_vi": "Thám tử tâm linh (P.I.)",
+          "name_en": "Paranormal Investigator",
+          "team": "village",
+          "balance_points": 3,
+          "quantity": 1,
+          "wake_up": "once_per_game_night",
+          "ability_vi": "Một lần trong trò chơi, chọn một người. Quản trò cho biết trong bộ ba gồm người đó và hai người ngồi kế bên có Ma sói hay không.",
+          "win_condition_vi": "Thắng cùng phe Dân làng",
+          "notes_vi": "Không biết cụ thể ai trong ba người là Sói."
+        },
+        {
+          "id": "prince",
+          "name_vi": "Hoàng tử",
+          "name_en": "Prince",
+          "team": "village",
+          "balance_points": 3,
+          "quantity": 1,
+          "wake_up": "on_execution",
+          "ability_vi": "Lần bị bỏ phiếu xử tử, công khai lá bài và không chết; ngày đó kết thúc ngay.",
+          "win_condition_vi": "Thắng cùng phe Dân làng",
+          "notes_vi": "Không miễn nhiễm với việc bị giết ban đêm."
+        },
+        {
+          "id": "seer",
+          "name_vi": "Tiên tri",
+          "name_en": "Seer",
+          "team": "village",
+          "balance_points": 7,
+          "quantity": 1,
+          "wake_up": "every_night",
+          "ability_vi": "Mỗi đêm chọn một người, quản trò thông báo người ấy có phải Ma sói hay không.",
+          "win_condition_vi": "Thắng cùng phe Dân làng",
+          "notes_vi": "Kết quả có thể bị đánh lừa bởi Lycan, Wolf Man hoặc vai đổi phe."
+        },
+        {
+          "id": "sorceress",
+          "name_vi": "Tiên tri Sói (Pháp sư Sói)",
+          "name_en": "Sorceress",
+          "team": "werewolf",
+          "balance_points": -3,
+          "quantity": 1,
+          "wake_up": "every_night",
+          "ability_vi": "Mỗi đêm soi một người để tìm Tiên tri; thường không biết danh tính Sói và Tiên tri soi sẽ thấy là Dân.",
+          "win_condition_vi": "Thắng cùng phe Sói",
+          "notes_vi": "Khác Seer phe Dân và khác sói có khả năng cắn."
+        },
+        {
+          "id": "tanner",
+          "name_vi": "Chán đời",
+          "name_en": "Tanner",
+          "team": "independent",
+          "balance_points": 1,
+          "quantity": 1,
+          "wake_up": "none",
+          "ability_vi": "Không có hành động đêm; mục tiêu cá nhân là bị loại khỏi ván.",
+          "win_condition_vi": "Thắng cá nhân khi bị giết; các phe khác có thể vẫn thắng theo điều kiện của họ.",
+          "notes_vi": "Điểm theo bảng Ultimate Edition; các bản khác có thể dùng -2."
+        },
+        {
+          "id": "tough_guy",
+          "name_vi": "Lực sĩ",
+          "name_en": "Tough Guy",
+          "team": "village",
+          "balance_points": 3,
+          "quantity": 1,
+          "wake_up": "none",
+          "ability_vi": "Nếu bị Sói cắn, không chết ngay mà chết vào đêm tiếp theo.",
+          "win_condition_vi": "Thắng cùng phe Dân làng",
+          "notes_vi": "Việc trì hoãn không đồng nghĩa bất tử."
+        },
+        {
+          "id": "vampire",
+          "name_vi": "Ma cà rồng",
+          "name_en": "Vampire",
+          "team": "vampire",
+          "balance_points": -8,
+          "quantity": 4,
+          "wake_up": "every_night",
+          "ability_vi": "Mỗi đêm phe Ma cà rồng cùng chọn một nạn nhân, người này chết sau phiên biểu quyết ban ngày tiếp theo. Ma cà rồng miễn nhiễm khi bị Sói tấn công vào ban đêm.",
+          "win_condition_vi": "Phe Ma cà rồng thắng khi loại hết các phe đối địch.",
+          "notes_vi": "Bộ Việt hóa có 4 lá; có ấn bản ghi điểm -7 thay vì -8."
+        },
+        {
+          "id": "village_idiot",
+          "name_vi": "Dân ngốc",
+          "name_en": "Village Idiot",
+          "team": "village",
+          "balance_points": 2,
+          "quantity": 1,
+          "wake_up": "none",
+          "ability_vi": "Luôn phải bỏ phiếu đồng ý xử tử người đang bị biểu quyết.",
+          "win_condition_vi": "Thắng cùng phe Dân làng",
+          "notes_vi": "Còn được gọi là Fool/Idiot trong một số danh sách."
+        },
+        {
+          "id": "villager",
+          "name_vi": "Dân làng",
+          "name_en": "Villager",
+          "team": "village",
+          "balance_points": 1,
+          "quantity": 12,
+          "wake_up": "none",
+          "ability_vi": "Không có quyền năng riêng; thảo luận và bỏ phiếu để tìm Sói.",
+          "win_condition_vi": "Thắng khi toàn bộ Sói bị loại và thỏa các điều kiện phe khác nếu có.",
+          "notes_vi": "12 bản sao cùng chức năng."
+        },
+        {
+          "id": "werewolf",
+          "name_vi": "Ma sói",
+          "name_en": "Werewolf",
+          "team": "werewolf",
+          "balance_points": -6,
+          "quantity": 8,
+          "wake_up": "every_night",
+          "ability_vi": "Thức dậy cùng các Sói, thống nhất chọn một nạn nhân mỗi đêm. Ban ngày tìm cách tránh bị phát hiện.",
+          "win_condition_vi": "Thắng khi phe Sói đạt điều kiện thắng đã thống nhất (thường ngang hoặc đông hơn Dân).",
+          "notes_vi": "8 bản sao cùng chức năng."
+        },
+        {
+          "id": "witch",
+          "name_vi": "Phù thủy",
+          "name_en": "Witch",
+          "team": "village",
+          "balance_points": 4,
+          "quantity": 1,
+          "wake_up": "every_night",
+          "ability_vi": "Có một bình cứu người bị giết ban đêm và một bình độc giết người; mỗi bình dùng tối đa một lần, có thể dùng cùng một đêm.",
+          "win_condition_vi": "Thắng cùng phe Dân làng",
+          "notes_vi": "Quản trò báo nạn nhân dự kiến cho Phù thủy."
+        },
+        {
+          "id": "wolf_cub",
+          "name_vi": "Sói con",
+          "name_en": "Wolf Cub",
+          "team": "werewolf",
+          "balance_points": -8,
+          "quantity": 1,
+          "wake_up": "every_night",
+          "ability_vi": "Là Sói và săn cùng đàn. Nếu chết, đàn Sói được giết hai nạn nhân vào đêm tiếp theo.",
+          "win_condition_vi": "Thắng cùng phe Sói",
+          "notes_vi": "Sói có thể chọn hy sinh Sói con nếu tất cả cùng đồng ý theo luật gốc."
+        },
+        {
+          "id": "moderator",
+          "name_vi": "Quản trò",
+          "name_en": "Moderator",
+          "team": "utility",
+          "balance_points": 0,
+          "quantity": 1,
+          "wake_up": "moderator",
+          "ability_vi": "Thẻ dành cho người điều hành, gọi chức năng ban đêm, kiểm phiếu và công bố kết quả.",
+          "win_condition_vi": "Không thuộc phe chơi.",
+          "notes_vi": "Lá phụ trợ; không chia như vai người chơi thông thường."
+        },
+        {
+          "id": "priest",
+          "name_vi": "Tu sĩ",
+          "name_en": "Priest",
+          "team": "village",
+          "balance_points": 3,
+          "quantity": 1,
+          "wake_up": "once_per_game_night",
+          "ability_vi": "Một lần trong ván chọn ban phước cho một người khác; người đó được cứu khỏi một lần chết trong đêm ở thời điểm sau đó.",
+          "win_condition_vi": "Thắng cùng phe Dân làng",
+          "notes_vi": "Người được ban phước vẫn có thể bị xử tử ban ngày."
+        },
+        {
+          "id": "blank_card",
+          "name_vi": "Thẻ trống",
+          "name_en": "Blank Card",
+          "team": "utility",
+          "balance_points": null,
+          "quantity": 3,
+          "wake_up": "none",
+          "ability_vi": "Lá chưa có chức năng in sẵn, dùng tự sáng tạo nhân vật hoặc thay thế lá bị thiếu.",
+          "win_condition_vi": "Do quản trò tự quy định nếu đặt chức năng lên lá.",
+          "notes_vi": "3 lá, không có điểm mặc định."
+        },
+        {
+          "id": "spellcaster",
+          "name_vi": "Pháp sư câm",
+          "name_en": "Spellcaster",
+          "team": "village",
+          "balance_points": 1,
+          "quantity": 1,
+          "wake_up": "every_night",
+          "ability_vi": "Mỗi đêm có thể chọn một người bị câm trong ngày tiếp theo; người đó vẫn được bỏ phiếu.",
+          "win_condition_vi": "Thắng cùng phe Dân làng",
+          "notes_vi": "Theo luật gốc không chọn câm cùng người hai lần trong ván."
+        },
+        {
+          "id": "hoodlum",
+          "name_vi": "Du côn",
+          "name_en": "Hoodlum",
+          "team": "independent",
+          "balance_points": 0,
+          "quantity": 1,
+          "wake_up": "first_night",
+          "ability_vi": "Đêm đầu chọn hai người. Nếu hai người ấy đều chết và Du côn vẫn sống khi kết thúc thì đạt mục tiêu riêng.",
+          "win_condition_vi": "Thắng cá nhân nếu sống đến cuối khi cả hai mục tiêu đã chết.",
+          "notes_vi": "Có thể đồng thắng với phe khác theo luật gốc."
+        },
+        {
+          "id": "troublemaker",
+          "name_vi": "Kẻ phá rối",
+          "name_en": "Troublemaker",
+          "team": "village",
+          "balance_points": 2,
+          "quantity": 1,
+          "wake_up": "once_per_game_night",
+          "ability_vi": "Một lần trong ván ra hiệu cho quản trò để ngày hôm sau có hai lần xử tử.",
+          "win_condition_vi": "Thắng cùng phe Dân làng",
+          "notes_vi": "Khác Troublemaker của One Night Ultimate Werewolf, vốn tráo lá."
+        }
+      ],
+      "physical_cards": [
+        {
+          "card_id": "BASIC-001",
+          "role_id": "apprentice_seer",
+          "copy_number": 1
+        },
+        {
+          "card_id": "BASIC-002",
+          "role_id": "aura_seer",
+          "copy_number": 1
+        },
+        {
+          "card_id": "BASIC-003",
+          "role_id": "bodyguard",
+          "copy_number": 1
+        },
+        {
+          "card_id": "BASIC-004",
+          "role_id": "cult_leader",
+          "copy_number": 1
+        },
+        {
+          "card_id": "BASIC-005",
+          "role_id": "cupid",
+          "copy_number": 1
+        },
+        {
+          "card_id": "BASIC-006",
+          "role_id": "cursed",
+          "copy_number": 1
+        },
+        {
+          "card_id": "BASIC-007",
+          "role_id": "diseased",
+          "copy_number": 1
+        },
+        {
+          "card_id": "BASIC-008",
+          "role_id": "doppelganger",
+          "copy_number": 1
+        },
+        {
+          "card_id": "BASIC-009",
+          "role_id": "drunk",
+          "copy_number": 1
+        },
+        {
+          "card_id": "BASIC-010",
+          "role_id": "ghost",
+          "copy_number": 1
+        },
+        {
+          "card_id": "BASIC-011",
+          "role_id": "hunter",
+          "copy_number": 1
+        },
+        {
+          "card_id": "BASIC-012",
+          "role_id": "lone_wolf",
+          "copy_number": 1
+        },
+        {
+          "card_id": "BASIC-013",
+          "role_id": "lycan",
+          "copy_number": 1
+        },
+        {
+          "card_id": "BASIC-014",
+          "role_id": "mason",
+          "copy_number": 1
+        },
+        {
+          "card_id": "BASIC-015",
+          "role_id": "mason",
+          "copy_number": 2
+        },
+        {
+          "card_id": "BASIC-016",
+          "role_id": "mayor",
+          "copy_number": 1
+        },
+        {
+          "card_id": "BASIC-017",
+          "role_id": "minion",
+          "copy_number": 1
+        },
+        {
+          "card_id": "BASIC-018",
+          "role_id": "old_hag",
+          "copy_number": 1
+        },
+        {
+          "card_id": "BASIC-019",
+          "role_id": "pacifist",
+          "copy_number": 1
+        },
+        {
+          "card_id": "BASIC-020",
+          "role_id": "pi",
+          "copy_number": 1
+        },
+        {
+          "card_id": "BASIC-021",
+          "role_id": "prince",
+          "copy_number": 1
+        },
+        {
+          "card_id": "BASIC-022",
+          "role_id": "seer",
+          "copy_number": 1
+        },
+        {
+          "card_id": "BASIC-023",
+          "role_id": "sorceress",
+          "copy_number": 1
+        },
+        {
+          "card_id": "BASIC-024",
+          "role_id": "tanner",
+          "copy_number": 1
+        },
+        {
+          "card_id": "BASIC-025",
+          "role_id": "tough_guy",
+          "copy_number": 1
+        },
+        {
+          "card_id": "BASIC-026",
+          "role_id": "vampire",
+          "copy_number": 1
+        },
+        {
+          "card_id": "BASIC-027",
+          "role_id": "vampire",
+          "copy_number": 2
+        },
+        {
+          "card_id": "BASIC-028",
+          "role_id": "vampire",
+          "copy_number": 3
+        },
+        {
+          "card_id": "BASIC-029",
+          "role_id": "vampire",
+          "copy_number": 4
+        },
+        {
+          "card_id": "BASIC-030",
+          "role_id": "village_idiot",
+          "copy_number": 1
+        },
+        {
+          "card_id": "BASIC-031",
+          "role_id": "villager",
+          "copy_number": 1
+        },
+        {
+          "card_id": "BASIC-032",
+          "role_id": "villager",
+          "copy_number": 2
+        },
+        {
+          "card_id": "BASIC-033",
+          "role_id": "villager",
+          "copy_number": 3
+        },
+        {
+          "card_id": "BASIC-034",
+          "role_id": "villager",
+          "copy_number": 4
+        },
+        {
+          "card_id": "BASIC-035",
+          "role_id": "villager",
+          "copy_number": 5
+        },
+        {
+          "card_id": "BASIC-036",
+          "role_id": "villager",
+          "copy_number": 6
+        },
+        {
+          "card_id": "BASIC-037",
+          "role_id": "villager",
+          "copy_number": 7
+        },
+        {
+          "card_id": "BASIC-038",
+          "role_id": "villager",
+          "copy_number": 8
+        },
+        {
+          "card_id": "BASIC-039",
+          "role_id": "villager",
+          "copy_number": 9
+        },
+        {
+          "card_id": "BASIC-040",
+          "role_id": "villager",
+          "copy_number": 10
+        },
+        {
+          "card_id": "BASIC-041",
+          "role_id": "villager",
+          "copy_number": 11
+        },
+        {
+          "card_id": "BASIC-042",
+          "role_id": "villager",
+          "copy_number": 12
+        },
+        {
+          "card_id": "BASIC-043",
+          "role_id": "werewolf",
+          "copy_number": 1
+        },
+        {
+          "card_id": "BASIC-044",
+          "role_id": "werewolf",
+          "copy_number": 2
+        },
+        {
+          "card_id": "BASIC-045",
+          "role_id": "werewolf",
+          "copy_number": 3
+        },
+        {
+          "card_id": "BASIC-046",
+          "role_id": "werewolf",
+          "copy_number": 4
+        },
+        {
+          "card_id": "BASIC-047",
+          "role_id": "werewolf",
+          "copy_number": 5
+        },
+        {
+          "card_id": "BASIC-048",
+          "role_id": "werewolf",
+          "copy_number": 6
+        },
+        {
+          "card_id": "BASIC-049",
+          "role_id": "werewolf",
+          "copy_number": 7
+        },
+        {
+          "card_id": "BASIC-050",
+          "role_id": "werewolf",
+          "copy_number": 8
+        },
+        {
+          "card_id": "BASIC-051",
+          "role_id": "witch",
+          "copy_number": 1
+        },
+        {
+          "card_id": "BASIC-052",
+          "role_id": "wolf_cub",
+          "copy_number": 1
+        },
+        {
+          "card_id": "BASIC-053",
+          "role_id": "moderator",
+          "copy_number": 1
+        },
+        {
+          "card_id": "BASIC-054",
+          "role_id": "priest",
+          "copy_number": 1
+        },
+        {
+          "card_id": "BASIC-055",
+          "role_id": "blank_card",
+          "copy_number": 1
+        },
+        {
+          "card_id": "BASIC-056",
+          "role_id": "blank_card",
+          "copy_number": 2
+        },
+        {
+          "card_id": "BASIC-057",
+          "role_id": "blank_card",
+          "copy_number": 3
+        },
+        {
+          "card_id": "BASIC-058",
+          "role_id": "spellcaster",
+          "copy_number": 1
+        },
+        {
+          "card_id": "BASIC-059",
+          "role_id": "hoodlum",
+          "copy_number": 1
+        },
+        {
+          "card_id": "BASIC-060",
+          "role_id": "troublemaker",
+          "copy_number": 1
+        }
+      ]
+    },
+    {
+      "id": "wolf_pack",
+      "name_vi": "Mở rộng 1: Bầy Sói",
+      "name_en": "Wolf Pack",
+      "type": "expansion",
+      "card_count": 6,
+      "unique_role_count": 6,
+      "roles": [
+        {
+          "id": "big_bad_wolf",
+          "name_vi": "Sói trùm (Sói đại ca)",
+          "name_en": "Big Bad Wolf",
+          "team": "werewolf",
+          "balance_points": -9,
+          "quantity": 1,
+          "wake_up": "every_night",
+          "ability_vi": "Khi còn sống, đàn Sói có thể ăn hai người ngồi cạnh nhau trong một đêm.",
+          "win_condition_vi": "Thắng cùng phe Sói",
+          "notes_vi": "Đêm đầu quản trò có thể gọi riêng để xác định Sói trùm."
+        },
+        {
+          "id": "dire_wolf",
+          "name_vi": "Sói đau khổ (Sói tuyết)",
+          "name_en": "Dire Wolf",
+          "team": "werewolf",
+          "balance_points": -4,
+          "quantity": 1,
+          "wake_up": "first_night_and_pack",
+          "ability_vi": "Đêm đầu chọn một người làm liên kết. Nếu người ấy chết, Dire Wolf chết theo; ngược lại không xảy ra.",
+          "win_condition_vi": "Thắng cùng phe Sói",
+          "notes_vi": "Tham gia săn cùng đàn."
+        },
+        {
+          "id": "fruit_brute",
+          "name_vi": "Sói ăn chay",
+          "name_en": "Fruit Brute / Fruit Wolf",
+          "team": "werewolf",
+          "balance_points": -3,
+          "quantity": 1,
+          "wake_up": "every_night",
+          "ability_vi": "Thức dậy cùng đàn nhưng nếu là Sói cuối cùng còn sống thì không thể tự giết nạn nhân vào đêm.",
+          "win_condition_vi": "Thắng cùng phe Sói",
+          "notes_vi": "Vẫn được tranh luận và biểu quyết ban ngày."
+        },
+        {
+          "id": "fang_face",
+          "name_vi": "Sói răng thỏ (Nanh Sói)",
+          "name_en": "Fang Face",
+          "team": "werewolf",
+          "balance_points": -5,
+          "quantity": 1,
+          "wake_up": "first_night_then_conditional",
+          "ability_vi": "Đêm đầu nhận biết các Sói; sau đó ngủ khi vẫn còn Sói khác, chỉ bắt đầu đi săn khi thành Sói cuối cùng.",
+          "win_condition_vi": "Thắng cùng phe Sói",
+          "notes_vi": "Cách thức tỉnh lại do quản trò theo dõi."
+        },
+        {
+          "id": "wolverine",
+          "name_vi": "Chồn Wolverine (Chó sói)",
+          "name_en": "Wolverine",
+          "team": "werewolf",
+          "balance_points": -4,
+          "quantity": 1,
+          "wake_up": "every_night",
+          "ability_vi": "Săn cùng đàn. Nếu Wolverine là Sói ngồi gần nạn nhân nhất, quản trò phát tiếng kim loại làm gợi ý cho cả làng.",
+          "win_condition_vi": "Thắng cùng phe Sói",
+          "notes_vi": "Dùng hiệu ứng âm thanh riêng theo luật vai."
+        },
+        {
+          "id": "virginia_woolf",
+          "name_vi": "Tiểu thuyết gia Virginia Woolf",
+          "name_en": "Virginia Woolf",
+          "team": "village",
+          "balance_points": -2,
+          "quantity": 1,
+          "wake_up": "first_night",
+          "ability_vi": "Đêm đầu chọn một người có quan hệ bị ám ảnh/sợ mình; người ấy được biết đã bị chọn. Nếu Virginia Woolf chết, người này cũng chết theo.",
+          "win_condition_vi": "Thắng cùng phe Dân làng",
+          "notes_vi": "Điểm âm do làm tăng rủi ro mất thêm người; điều kiện chết một chiều."
+        }
+      ],
+      "physical_cards": [
+        {
+          "card_id": "WOLF_PACK-001",
+          "role_id": "big_bad_wolf",
+          "copy_number": 1
+        },
+        {
+          "card_id": "WOLF_PACK-002",
+          "role_id": "dire_wolf",
+          "copy_number": 1
+        },
+        {
+          "card_id": "WOLF_PACK-003",
+          "role_id": "fruit_brute",
+          "copy_number": 1
+        },
+        {
+          "card_id": "WOLF_PACK-004",
+          "role_id": "fang_face",
+          "copy_number": 1
+        },
+        {
+          "card_id": "WOLF_PACK-005",
+          "role_id": "wolverine",
+          "copy_number": 1
+        },
+        {
+          "card_id": "WOLF_PACK-006",
+          "role_id": "virginia_woolf",
+          "copy_number": 1
+        }
+      ]
+    },
+    {
+      "id": "hunting_party",
+      "name_vi": "Mở rộng 2: Cuộc săn",
+      "name_en": "Hunting Party",
+      "type": "expansion",
+      "card_count": 9,
+      "unique_role_count": 9,
+      "roles": [
+        {
+          "id": "mad_bomber",
+          "name_vi": "Kẻ đánh bom",
+          "name_en": "Mad Bomber",
+          "team": "independent",
+          "balance_points": -2,
+          "quantity": 1,
+          "wake_up": "on_death",
+          "ability_vi": "Khi chết, hai người còn sống gần nhất bên trái và bên phải cũng chết theo.",
+          "win_condition_vi": "Không có điều kiện thắng riêng được xác định thống nhất; quản trò nên chốt phe trước khi chơi.",
+          "notes_vi": "Vai có ảnh hưởng bất lợi cho Dân; một số ấn bản xếp phe Dân."
+        },
+        {
+          "id": "mentalist",
+          "name_vi": "Thám tử (Nhà tâm lý học)",
+          "name_en": "Mentalist",
+          "team": "village",
+          "balance_points": 6,
+          "quantity": 1,
+          "wake_up": "every_night",
+          "ability_vi": "Mỗi đêm chọn hai người và được báo hai người đó có thuộc cùng phe hay không.",
+          "win_condition_vi": "Thắng cùng phe Dân làng",
+          "notes_vi": "Tên Thám tử ở danh mục 93 lá Hunting Party là Mentalist; đừng nhầm với P.I. cơ bản."
+        },
+        {
+          "id": "revealer",
+          "name_vi": "Người khám phá",
+          "name_en": "Revealer",
+          "team": "village",
+          "balance_points": 4,
+          "quantity": 1,
+          "wake_up": "every_night",
+          "ability_vi": "Mỗi đêm chỉ một người: nếu là Sói, người đó chết; nếu không phải Sói, Revealer chết.",
+          "win_condition_vi": "Thắng cùng phe Dân làng",
+          "notes_vi": "Một số luật cho phép dùng tiếp nếu đoán trúng."
+        },
+        {
+          "id": "mystic_seer",
+          "name_vi": "Tiên tri bí ẩn",
+          "name_en": "Mystic Seer",
+          "team": "village",
+          "balance_points": 9,
+          "quantity": 1,
+          "wake_up": "every_night",
+          "ability_vi": "Mỗi đêm chọn một người, quản trò cho biết chính xác lá chức năng của người đó.",
+          "win_condition_vi": "Thắng cùng phe Dân làng",
+          "notes_vi": "Mạnh hơn Tiên tri thông thường."
+        },
+        {
+          "id": "huntress",
+          "name_vi": "Nữ thợ săn",
+          "name_en": "Huntress",
+          "team": "village",
+          "balance_points": 3,
+          "quantity": 1,
+          "wake_up": "once_per_game_night",
+          "ability_vi": "Một lần trong ván, ban đêm chọn bất kỳ một người để giết.",
+          "win_condition_vi": "Thắng cùng phe Dân làng",
+          "notes_vi": "Không cần bản thân chết mới kích hoạt như Thợ săn."
+        },
+        {
+          "id": "alpha_wolf",
+          "name_vi": "Sói Alpha",
+          "name_en": "Alpha Wolf",
+          "team": "werewolf",
+          "balance_points": -9,
+          "quantity": 1,
+          "wake_up": "conditional",
+          "ability_vi": "Một lần trong ván sau khi có Sói khác bị xử tử ban ngày, đêm kế tiếp có thể biến nạn nhân do đàn Sói chọn thành Sói thay vì giết.",
+          "win_condition_vi": "Thắng cùng phe Sói",
+          "notes_vi": "Nếu nạn nhân được bảo vệ, khả năng biến đổi có thể thất bại theo luật lá."
+        },
+        {
+          "id": "martyr",
+          "name_vi": "Kẻ tử đạo",
+          "name_en": "Martyr",
+          "team": "village",
+          "balance_points": 3,
+          "quantity": 1,
+          "wake_up": "on_execution",
+          "ability_vi": "Ngay trước khi một người bị xử tử, có thể tự hy sinh để cứu người đó.",
+          "win_condition_vi": "Thắng cùng phe Dân làng",
+          "notes_vi": "Người bị xử tử được cứu, Kẻ tử đạo chết thay."
+        },
+        {
+          "id": "old_man",
+          "name_vi": "Ông già",
+          "name_en": "Old Man / Elder",
+          "team": "village",
+          "balance_points": 0,
+          "quantity": 1,
+          "wake_up": "automatic",
+          "ability_vi": "Tự chết vào đêm thứ N (N bằng số Sói ban đầu cộng một), lịch chết có thể rút ngắn khi Sói bị giết.",
+          "win_condition_vi": "Thắng cùng phe Dân làng",
+          "notes_vi": "Cần quản trò theo dõi số đêm; khác Bá tước."
+        },
+        {
+          "id": "time_bandit",
+          "name_vi": "Kẻ cướp thời gian",
+          "name_en": "Time Bandit",
+          "team": "independent",
+          "balance_points": -3,
+          "quantity": 1,
+          "wake_up": "on_death",
+          "ability_vi": "Khi bị loại, từ những ngày tiếp theo thời gian thảo luận bị giới hạn còn một phút.",
+          "win_condition_vi": "Không có mục tiêu thắng riêng được xác nhận trong nguồn đối chiếu; thống nhất phe trước ván.",
+          "notes_vi": "Đây là một trong ba lá bổ sung của gói 9 lá Hunting Party bán tại Việt Nam."
+        }
+      ],
+      "physical_cards": [
+        {
+          "card_id": "HUNTING_PARTY-001",
+          "role_id": "mad_bomber",
+          "copy_number": 1
+        },
+        {
+          "card_id": "HUNTING_PARTY-002",
+          "role_id": "mentalist",
+          "copy_number": 1
+        },
+        {
+          "card_id": "HUNTING_PARTY-003",
+          "role_id": "revealer",
+          "copy_number": 1
+        },
+        {
+          "card_id": "HUNTING_PARTY-004",
+          "role_id": "mystic_seer",
+          "copy_number": 1
+        },
+        {
+          "card_id": "HUNTING_PARTY-005",
+          "role_id": "huntress",
+          "copy_number": 1
+        },
+        {
+          "card_id": "HUNTING_PARTY-006",
+          "role_id": "alpha_wolf",
+          "copy_number": 1
+        },
+        {
+          "card_id": "HUNTING_PARTY-007",
+          "role_id": "martyr",
+          "copy_number": 1
+        },
+        {
+          "card_id": "HUNTING_PARTY-008",
+          "role_id": "old_man",
+          "copy_number": 1
+        },
+        {
+          "card_id": "HUNTING_PARTY-009",
+          "role_id": "time_bandit",
+          "copy_number": 1
+        }
+      ]
+    },
+    {
+      "id": "urban_legends",
+      "name_vi": "Mở rộng 3: Truyền thuyết đô thị",
+      "name_en": "Urban Legends",
+      "type": "expansion",
+      "card_count": 6,
+      "unique_role_count": 6,
+      "roles": [
+        {
+          "id": "sasquatch",
+          "name_vi": "Chân to",
+          "name_en": "Sasquatch",
+          "team": "switching",
+          "balance_points": -2,
+          "quantity": 1,
+          "wake_up": "on_no_execution",
+          "ability_vi": "Ban đầu phe Dân, nhưng bị Tiên tri soi ra Sói. Nếu một ngày không ai bị xử tử, từ sau đó chuyển sang phe Sói.",
+          "win_condition_vi": "Thắng theo phe hiện tại.",
+          "notes_vi": "Vai đổi phe khi có ngày không xử tử."
+        },
+        {
+          "id": "nostradamus",
+          "name_vi": "Nhà tiên tri Nostradamus",
+          "name_en": "Nostradamus",
+          "team": "independent",
+          "balance_points": 1,
+          "quantity": 1,
+          "wake_up": "first_night",
+          "ability_vi": "Đêm đầu đoán phe nào sẽ giành chiến thắng, sau đó cố gắng sống đến cuối.",
+          "win_condition_vi": "Thắng cá nhân nếu còn sống và phe dự đoán thắng.",
+          "notes_vi": "Có thể đồng thắng cùng phe được dự đoán."
+        },
+        {
+          "id": "bloody_mary",
+          "name_vi": "Bloody Mary",
+          "name_en": "Bloody Mary",
+          "team": "switching",
+          "balance_points": 1,
+          "quantity": 1,
+          "wake_up": "every_night_after_death",
+          "ability_vi": "Khi bị giết, tiếp tục thức dậy vào các đêm sau để báo thù phe đã giết mình bằng cách giết người thuộc phe đó.",
+          "win_condition_vi": "Nếu chết, đạt mục tiêu khi phe giết mình thua; nếu sống, theo phe Dân làng.",
+          "notes_vi": "Khi Dân làng xử tử Bloody Mary, nhân vật có thể quay sang chống Dân."
+        },
+        {
+          "id": "leprechaun",
+          "name_vi": "Yêu tinh",
+          "name_en": "Leprechaun",
+          "team": "village",
+          "balance_points": 5,
+          "quantity": 1,
+          "wake_up": "every_night",
+          "ability_vi": "Mỗi đêm sau lượt Sói, xem nạn nhân Sói đã chọn và có thể chuyển đòn tấn công sang một trong hai người ngồi kề nạn nhân.",
+          "win_condition_vi": "Thắng cùng phe Dân làng",
+          "notes_vi": "Cân nhắc tác động tới người bị bảo vệ."
+        },
+        {
+          "id": "chupacabra",
+          "name_vi": "Chupacabra",
+          "name_en": "Chupacabra",
+          "team": "independent",
+          "balance_points": 4,
+          "quantity": 1,
+          "wake_up": "every_night",
+          "ability_vi": "Mỗi đêm chọn một người; nếu người đó là Sói, người đó chết. Khi tất cả Sói đã chết, có thể giết mục tiêu thuộc phe khác.",
+          "win_condition_vi": "Thắng riêng khi loại hết các người chơi khác và là người sống cuối cùng.",
+          "notes_vi": "Đối chiếu mô tả vai Chupacabra: chỉ có thể tiêu diệt Sói trước; khi hết Sói thì mới giết các phe khác."
+        },
+        {
+          "id": "wolf_man",
+          "name_vi": "Người sói (Sói giả dân)",
+          "name_en": "Wolf Man",
+          "team": "werewolf",
+          "balance_points": -9,
+          "quantity": 1,
+          "wake_up": "every_night",
+          "ability_vi": "Thức dậy và săn cùng Sói, nhưng Tiên tri soi sẽ nhận kết quả là Dân làng.",
+          "win_condition_vi": "Thắng cùng phe Sói",
+          "notes_vi": "Khác Người lai Sói thuộc phe Dân."
+        }
+      ],
+      "physical_cards": [
+        {
+          "card_id": "URBAN_LEGENDS-001",
+          "role_id": "sasquatch",
+          "copy_number": 1
+        },
+        {
+          "card_id": "URBAN_LEGENDS-002",
+          "role_id": "nostradamus",
+          "copy_number": 1
+        },
+        {
+          "card_id": "URBAN_LEGENDS-003",
+          "role_id": "bloody_mary",
+          "copy_number": 1
+        },
+        {
+          "card_id": "URBAN_LEGENDS-004",
+          "role_id": "leprechaun",
+          "copy_number": 1
+        },
+        {
+          "card_id": "URBAN_LEGENDS-005",
+          "role_id": "chupacabra",
+          "copy_number": 1
+        },
+        {
+          "card_id": "URBAN_LEGENDS-006",
+          "role_id": "wolf_man",
+          "copy_number": 1
+        }
+      ]
+    },
+    {
+      "id": "night_terrors",
+      "name_vi": "Mở rộng 4: Nỗi kinh hoàng ban đêm",
+      "name_en": "Night Terrors",
+      "type": "expansion",
+      "card_count": 6,
+      "unique_role_count": 6,
+      "roles": [
+        {
+          "id": "beholder",
+          "name_vi": "Người chứng kiến",
+          "name_en": "Beholder",
+          "team": "village",
+          "balance_points": 2,
+          "quantity": 1,
+          "wake_up": "first_night",
+          "ability_vi": "Đêm đầu được quản trò chỉ cho biết Tiên tri là ai.",
+          "win_condition_vi": "Thắng cùng phe Dân làng",
+          "notes_vi": "Tiên tri không nhất thiết biết Người chứng kiến là ai."
+        },
+        {
+          "id": "the_count",
+          "name_vi": "Bá tước",
+          "name_en": "The Count",
+          "team": "village",
+          "balance_points": 5,
+          "quantity": 1,
+          "wake_up": "first_night",
+          "ability_vi": "Đêm đầu biết số Ma sói ở từng nửa vòng người chơi.",
+          "win_condition_vi": "Thắng cùng phe Dân làng",
+          "notes_vi": "Phân chia hai nửa phải thống nhất trước để tránh lộ thông tin."
+        },
+        {
+          "id": "insomniac",
+          "name_vi": "Kẻ mất ngủ",
+          "name_en": "Insomniac",
+          "team": "village",
+          "balance_points": 3,
+          "quantity": 1,
+          "wake_up": "every_night",
+          "ability_vi": "Mỗi đêm được cho biết có người ngồi kề thức dậy hành động ban đêm hay không.",
+          "win_condition_vi": "Thắng cùng phe Dân làng",
+          "notes_vi": "Không biết chắc người đó thuộc phe nào."
+        },
+        {
+          "id": "the_thing",
+          "name_vi": "Vật thể lạ",
+          "name_en": "The Thing",
+          "team": "village",
+          "balance_points": 3,
+          "quantity": 1,
+          "wake_up": "every_night",
+          "ability_vi": "Mỗi đêm chọn một trong hai người ngồi cạnh để chạm/vỗ nhẹ theo hướng dẫn của quản trò, tạo manh mối suy luận.",
+          "win_condition_vi": "Thắng cùng phe Dân làng",
+          "notes_vi": "Không được mở mắt trực tiếp để xác định vai của người được chạm."
+        },
+        {
+          "id": "dream_wolf",
+          "name_vi": "Sói chiêm bao",
+          "name_en": "Dreamwolf",
+          "team": "werewolf",
+          "balance_points": -5,
+          "quantity": 1,
+          "wake_up": "conditional",
+          "ability_vi": "Thuộc phe Sói nhưng ban đầu không thức dậy săn cùng đàn; chỉ được gọi cùng đàn sau khi có một Sói khác chết.",
+          "win_condition_vi": "Thắng cùng phe Sói",
+          "notes_vi": "Cần thống nhất cách Sói nhận diện Sói chiêm bao đêm đầu."
+        },
+        {
+          "id": "bogeyman",
+          "name_vi": "Ông kẹ",
+          "name_en": "Bogeyman",
+          "team": "independent",
+          "balance_points": -6,
+          "quantity": 1,
+          "wake_up": "every_night_conditional",
+          "ability_vi": "Nếu đàn Sói không chọn được nạn nhân trong thời gian cho phép, có thể chỉ định nạn nhân thay.",
+          "win_condition_vi": "Thắng riêng nếu tất cả người có khả năng thức dậy hành động ban đêm đều bị loại.",
+          "notes_vi": "Thời gian dành cho Sói cần được quản trò xác định trước."
+        }
+      ],
+      "physical_cards": [
+        {
+          "card_id": "NIGHT_TERRORS-001",
+          "role_id": "beholder",
+          "copy_number": 1
+        },
+        {
+          "card_id": "NIGHT_TERRORS-002",
+          "role_id": "the_count",
+          "copy_number": 1
+        },
+        {
+          "card_id": "NIGHT_TERRORS-003",
+          "role_id": "insomniac",
+          "copy_number": 1
+        },
+        {
+          "card_id": "NIGHT_TERRORS-004",
+          "role_id": "the_thing",
+          "copy_number": 1
+        },
+        {
+          "card_id": "NIGHT_TERRORS-005",
+          "role_id": "dream_wolf",
+          "copy_number": 1
+        },
+        {
+          "card_id": "NIGHT_TERRORS-006",
+          "role_id": "bogeyman",
+          "copy_number": 1
+        }
+      ]
+    },
+    {
+      "id": "classic_movie_monsters",
+      "name_vi": "Mở rộng 5: Quái vật điện ảnh",
+      "name_en": "Classic Movie Monsters",
+      "type": "expansion",
+      "card_count": 6,
+      "unique_role_count": 6,
+      "roles": [
+        {
+          "id": "frankenstein",
+          "name_vi": "Quái vật Frankenstein",
+          "name_en": "Frankenstein's Monster",
+          "team": "village",
+          "balance_points": null,
+          "quantity": 1,
+          "wake_up": "conditional",
+          "ability_vi": "Khi người chơi có chức năng đặc biệt chết, có thể thừa hưởng và tích lũy năng lực của những vai đã chết.",
+          "win_condition_vi": "Thắng cùng phe Dân làng",
+          "notes_vi": "Điểm động: +2 cho mỗi vai đặc biệt trong ván theo hướng dẫn thẻ; không thể ghi một số cố định.",
+          "score_formula": "2 * số lá chức năng đặc biệt trong ván (tùy cách tính của ấn bản)"
+        },
+        {
+          "id": "blob",
+          "name_vi": "Chất nhầy",
+          "name_en": "The Blob",
+          "team": "independent",
+          "balance_points": -1,
+          "quantity": 1,
+          "wake_up": "every_night",
+          "ability_vi": "Mỗi đêm lan sang một người ngồi sát theo một hướng; nếu toàn bộ người còn sống bị lan nhiễm, Chất nhầy đạt mục tiêu.",
+          "win_condition_vi": "Thắng riêng nếu tất cả người sống đều đã bị xâm nhiễm.",
+          "notes_vi": "Không nhất thiết giết người khi lây nhiễm."
+        },
+        {
+          "id": "zombie",
+          "name_vi": "Xác sống",
+          "name_en": "Zombie",
+          "team": "independent",
+          "balance_points": -3,
+          "quantity": 1,
+          "wake_up": "every_night",
+          "ability_vi": "Mỗi đêm chọn một người để ăn não, khiến họ không còn quyền bỏ phiếu xử tử.",
+          "win_condition_vi": "Thắng riêng khi tất cả người sống đều đã bị ăn não.",
+          "notes_vi": "Tác dụng ăn não tích lũy suốt ván."
+        },
+        {
+          "id": "count_dracula",
+          "name_vi": "Bá tước Dracula",
+          "name_en": "Count Dracula",
+          "team": "independent",
+          "balance_points": -2,
+          "quantity": 1,
+          "wake_up": "every_night",
+          "ability_vi": "Mỗi đêm chọn một người làm cô dâu của Dracula.",
+          "win_condition_vi": "Thắng riêng khi có ba cô dâu còn sống theo điều kiện thời điểm quy định.",
+          "notes_vi": "Cần quản trò ghi danh sách cô dâu; khác The Count của Night Terrors."
+        },
+        {
+          "id": "the_mummy",
+          "name_vi": "Xác ướp",
+          "name_en": "The Mummy",
+          "team": "village",
+          "balance_points": 2,
+          "quantity": 1,
+          "wake_up": "every_night",
+          "ability_vi": "Mỗi đêm chọn một người; trong ngày kế tiếp phiếu của người đó được tính theo phiếu của Xác ướp, bất kể người đó tự biểu quyết ra sao.",
+          "win_condition_vi": "Thắng cùng phe Dân làng",
+          "notes_vi": "Tác động tới phiếu của một người một ngày."
+        },
+        {
+          "id": "teenage_werewolf",
+          "name_vi": "Sói tuổi teen",
+          "name_en": "Teenage Werewolf",
+          "team": "werewolf",
+          "balance_points": -4,
+          "quantity": 1,
+          "wake_up": "every_night",
+          "ability_vi": "Săn cùng đàn Sói nhưng mỗi ngày bắt buộc phải nói từ “Sói” hoặc “Ma sói” theo luật nhóm; nếu không nói sẽ chết.",
+          "win_condition_vi": "Thắng cùng phe Sói",
+          "notes_vi": "Quản trò phải xác định từ khóa và cách tính thời hạn trước khi bắt đầu."
+        }
+      ],
+      "physical_cards": [
+        {
+          "card_id": "CLASSIC_MOVIE_MONSTERS-001",
+          "role_id": "frankenstein",
+          "copy_number": 1
+        },
+        {
+          "card_id": "CLASSIC_MOVIE_MONSTERS-002",
+          "role_id": "blob",
+          "copy_number": 1
+        },
+        {
+          "card_id": "CLASSIC_MOVIE_MONSTERS-003",
+          "role_id": "zombie",
+          "copy_number": 1
+        },
+        {
+          "card_id": "CLASSIC_MOVIE_MONSTERS-004",
+          "role_id": "count_dracula",
+          "copy_number": 1
+        },
+        {
+          "card_id": "CLASSIC_MOVIE_MONSTERS-005",
+          "role_id": "the_mummy",
+          "copy_number": 1
+        },
+        {
+          "card_id": "CLASSIC_MOVIE_MONSTERS-006",
+          "role_id": "teenage_werewolf",
+          "copy_number": 1
+        }
+      ]
+    }
+  ]
+}

@@ -36,5 +36,11 @@ jobs:
       - name: Lint
         run: pnpm lint:ci
 
+      - name: Frontend tests
+        run: pnpm test:unit --run
+
+      - name: Werewolf rules and realtime tests
+        run: pnpm test:werewolf
+
       - name: Build
         run: pnpm build

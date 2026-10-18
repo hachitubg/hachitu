@@ -51,6 +51,12 @@ type RoomState = {
 
 ## Kiến trúc tổng thể
 
+### Ma Sói có quản trò (phiên bản mới)
+
+App `/werewolf-host` dùng namespace Socket.IO `/werewolf` trên cùng transport `/socket.io`. Tạo/join/resume qua command có ACK; module `server/werewolf/` giữ luật và dữ liệu riêng trên server, không dùng client quản trò làm nguồn sự thật. Mỗi người nhận view đã lọc, không broadcast role/token của người khác. Quản trò riêng không nhận bài. Lịch sử và thắng/thua chỉ trong phòng, TTL cố định 24 giờ, không database. Tài liệu luật và phạm vi vai nằm trong `src/views/werewolf-host/README.md`.
+
+Luồng HTTP tạo/join minh họa dưới đây áp dụng các app chat/game cũ; không áp dụng Ma Sói mới.
+
 ```text
 Browser
   -> HTTP create/join room

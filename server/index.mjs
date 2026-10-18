@@ -2,6 +2,7 @@ import { createServer } from 'node:http'
 import { randomUUID } from 'node:crypto'
 import { URL } from 'node:url'
 import { Server as SocketIOServer } from 'socket.io'
+import { registerWerewolf } from './werewolf/socket.mjs'
 
 const PORT = Number(process.env.HACHITU_SERVER_PORT || 3001)
 const ROOM_TTL_MS = 1000 * 60 * 60 * 24
@@ -448,6 +449,7 @@ const io = new SocketIOServer(server, {
   path: '/socket.io',
   cors: { origin: true, credentials: true },
 })
+registerWerewolf(io)
 
 io.on('connection', (socket) => {
   const gameType = trimValue(socket.handshake.query.gameType, 32)

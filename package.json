@@ -15,6 +15,7 @@
     "deploy:worker": "wrangler deploy",
     "clean:worker-state": "node scripts/clean-worker-state.mjs",
     "test:unit": "vitest",
+    "test:werewolf": "node --test server/werewolf/engine.test.mjs server/werewolf/basic.test.mjs server/werewolf/socket.test.mjs",
     "build-only": "vite build && node scripts/generate-og-pages.mjs && node scripts/generate-sitemap.mjs",
     "type-check": "vue-tsc --build",
     "lint": "run-s lint:*",

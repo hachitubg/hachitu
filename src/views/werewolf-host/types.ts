@@ -1,211 +1,282 @@
-export type RoleId =
-  | 'wolf'
-  | 'wolf-cub'
-  | 'cursed-wolf'
-  | 'villager'
-  | 'seer'
-  | 'guard'
-  | 'witch'
-  | 'hunter'
-  | 'disruptor'
-  | 'traitor'
-  | 'cupid'
-
-export type Faction = 'wolf' | 'villager'
-
-export type GamePhase =
-  | 'setup'
-  | 'role-reveal'
-  | 'night'
-  | 'day-result'
-  | 'day-discussion'
-  | 'day-nominate'
-  | 'day-explain'
-  | 'day-hang'
-  | 'game-over'
-
-export type NightStep =
-  | 'disruptor'
-  | 'cupid'
-  | 'wolves'
-  | 'traitor'
-  | 'seer'
-  | 'guard'
-  | 'witch'
-  | 'hunter'
-
-export type NightUiState = 'calling' | 'acting' | 'fake-wait' | 'sleeping'
-
-export type DeathReason = 'wolf' | 'witch-poison' | 'hunter-shot' | 'hanged' | 'lover-death'
-
-export interface Player {
+export interface Role {
+  id: string
+  name_vi: string
+  name_en: string
+  team: string
+  balance_points: number | null
+  quantity: number
+  ability_vi: string
+  win_condition_vi: string
+  notes_vi: string
+  wake_up: string
+  enabled: boolean
+  set: string
+  setId?: string
+  guide_vi?: string
+  drunkEligible?: boolean
+}
+export interface Member {
   id: string
   name: string
-  role: RoleId
-  faction: Faction
+  avatar: string
+  host: boolean
+  ready: boolean
+  connected: boolean
   alive: boolean
-  deathRound?: number
-  deathTime?: 'night' | 'day'
-  deathReason?: DeathReason
-  isSilenced: boolean
+  seen: boolean
+  silenced: boolean
+  banished: boolean
+  hiddenRole: string | null
+  seat: number
+  wins: number
+  losses: number
+  role: string | null
 }
-
-export interface RoleConfig {
-  wolf: number
-  'wolf-cub': number
-  'cursed-wolf': number
-  villager: number
-  seer: number
-  guard: number
-  witch: number
-  hunter: number
-  disruptor: number
-  traitor: number
-  cupid: number
+export interface Log {
+  at: number
+  round: number
+  phase: string
+  message: string
 }
-
-export interface TimeConfig {
-  discussionSeconds: number
-  discussionDecisionSeconds: number
-  discussionExtendSeconds: number
-  nightActionSeconds: number
-  nominateSeconds: number
-  explainSeconds: number
-  hangVoteSeconds: number
-  nightDelayMs: number
+export interface History {
+  game: number
+  winner: string
+  logs: Log[]
+  players: {
+    id: string
+    name: string
+    avatar?: string
+    role: string
+    originalRole?: string
+    won: boolean
+    alive: boolean
+  }[]
 }
-
-export interface DeathRecord {
-  playerId: string
-  reason: DeathReason
+export interface RoomState {
+  cardsOnly: boolean
+  canResetNight: boolean
+  code: string
+  revision: number
+  phase: string
+  round: number
+  game: number
+  expires: number
+  deadline: number | null
+  remainingMs: number | null
+  serverTime: number
+  host: boolean
+  myId: string
+  members: Member[]
+  paused: boolean
+  waitingFor: string[]
+  deck: string[]
+  drunkRole: string | null
+  seatOrder: string[]
+  myRole: string | null
+  myWon: boolean | null
+  canVote: boolean
+  voterCount: number
+  clues: { round: number; letter: string }[]
+  alive: boolean
+  seen: boolean
+  notes: string[]
+  current: { key: string; total: number; confirmed: number } | null
+  action: {
+    key: string
+    options: string[]
+    confirmed: boolean
+    targets: string[]
+    save: boolean
+    saveTarget: string | null
+    text: string
+    activate: boolean
+    max: number
+    optional: boolean
+    kind: 'targets' | 'letter' | 'activate'
+    used: Record<string, boolean>
+    wolfTarget: string | null
+    wolfTargets: string[]
+  } | null
+  choices: {
+    id: string
+    targets: string[]
+    save: boolean
+    saveTarget?: string | null
+    text?: string
+    activate?: boolean
+    confirmed: boolean
+  }[]
+  nominee: string | null
+  eligible: string[]
+  voted: boolean
+  vote: string | boolean | null
+  voteCount: number
+  ballot: number
+  summary: string
+  deaths: string[]
+  winner: string | null
+  logs: Log[]
+  history: History[]
 }
-
-export interface NightRecord {
-  night: number
-  wolfTargets: string[]
-  seerTarget?: string
-  seerIsWolf?: boolean
-  guardTarget?: string
-  witchSaved?: string
-  witchKilled?: string
-  disruptorTarget?: string
-  hunterTarget?: string
-  deaths: DeathRecord[]
-  curseConverted?: string
-  wolfCubDied: boolean
+export interface Session {
+  code: string
+  id: string
+  token: string
 }
-
-export interface DayRecord {
-  day: number
-  silenced?: string
-  nominations: Record<string, string | null>
-  nominated: string[]
-  hangVotes: Record<string, string | null>
-  hanged?: string
-  deaths: DeathRecord[]
+export interface Reply {
+  ok: boolean
+  error?: string
+  code?: string
+  session?: Session
 }
-
-export interface GameHistory {
-  nights: NightRecord[]
-  days: DayRecord[]
+export interface Input {
+  cardsOnly?: boolean
+  playerId?: string
+  revision?: number
+  name?: string
+  avatar?: string
+  code?: string
+  id?: string
+  token?: string
+  deck?: string[]
+  drunkRole?: string
+  order?: string[]
+  targets?: string[]
+  save?: boolean
+  saveTarget?: string | null
+  text?: string
+  activate?: boolean
+  vote?: string | boolean | null
 }
-
-export const ROLE_NAMES: Record<RoleId, string> = {
-  wolf: 'Sói thường',
-  'wolf-cub': 'Sói con',
-  'cursed-wolf': 'Sói nguyền',
-  villager: 'Dân thường',
-  seer: 'Tiên tri',
-  guard: 'Bảo vệ',
-  witch: 'Phù thủy',
-  hunter: 'Thợ săn',
-  disruptor: 'Kẻ phá hoại',
-  traitor: 'Kẻ phản bội',
-  cupid: 'Thần tình yêu',
-}
-
-export const ROLE_EMOJI: Record<RoleId, string> = {
-  wolf: '🐺',
-  'wolf-cub': '🐺',
-  'cursed-wolf': '😈',
-  villager: '👤',
-  seer: '🔮',
-  guard: '🛡️',
-  witch: '🧙',
-  hunter: '🏹',
-  disruptor: '🤫',
-  traitor: '🎭',
-  cupid: '💘',
-}
-
-export const ROLE_DESC: Record<RoleId, string> = {
-  wolf: 'Mỗi đêm cùng bầy cắn 1 người dân.',
-  'wolf-cub': 'Khi chết, đêm sau sói được cắn 2 người.',
-  'cursed-wolf': 'Ban đầu là Dân. Khi bị cắn, chuyển sang phe Sói.',
-  villager: 'Không có kỹ năng đặc biệt.',
-  seer: 'Mỗi đêm soi 1 người: kết quả là Sói hay Dân.',
-  guard: 'Mỗi đêm bảo vệ 1 người khỏi bị cắn.',
-  witch: 'Có 1 bình cứu và 1 bình độc, dùng 1 lần mỗi loại.',
-  hunter: 'Khi chết, người bị chỉ định cũng chết theo.',
-  disruptor: 'Mỗi đêm cấm 1 người nói chuyện sáng hôm sau.',
-  traitor: 'Biết ai là Sói, nhưng Sói không biết bạn. Thắng nếu phe Sói thắng.',
-  cupid: 'Đêm 1: chọn 2 người yêu nhau. Nếu 1 người chết, người kia chết theo.',
-}
-
-export const ROLE_POINTS: Record<RoleId, number> = {
-  wolf: -6,
-  'wolf-cub': -8,
-  'cursed-wolf': -4,
-  villager: 1,
-  seer: 3,
-  guard: 3,
-  witch: 4,
-  hunter: 3,
-  disruptor: -2,
-  traitor: -6,
-  cupid: -3,
-}
-
-export const NIGHT_ORDER: NightStep[] = [
-  'disruptor',
-  'cupid',
-  'wolves',
-  'traitor',
+export const artIds = [
+  'villager',
+  'werewolf',
   'seer',
-  'guard',
+  'bodyguard',
   'witch',
-  'hunter',
+  'mason',
+  'mayor',
+  'minion',
+  'lycan',
+  'wolf_man',
+  'pacifist',
+  'village_idiot',
+  'prince',
+  'spellcaster',
+  'aura_seer',
+  'sorceress',
 ]
-
-export const NIGHT_CALL: Record<NightStep, string> = {
-  disruptor: 'Kẻ phá hoại hãy mở mắt và chọn người muốn cấm thảo luận.',
-  cupid: 'Thần tình yêu hãy mở mắt và chọn 2 người yêu nhau.',
-  wolves: 'Bầy sói hãy mở mắt và chọn người muốn cắn.',
-  traitor: 'Kẻ phản bội hãy mở mắt.',
-  seer: 'Tiên tri hãy mở mắt và chọn người muốn soi.',
-  guard: 'Bảo vệ hãy mở mắt và chọn người muốn bảo vệ.',
-  witch: 'Phù thủy hãy mở mắt.',
-  hunter: 'Thợ săn hãy mở mắt và chọn người muốn chỉ định.',
+export function artStyle(id: string | number) {
+  const expansion = [
+    'big_bad_wolf',
+    'dire_wolf',
+    'fruit_brute',
+    'fang_face',
+    'wolverine',
+    'virginia_woolf',
+    'mad_bomber',
+    'mentalist',
+    'revealer',
+    'mystic_seer',
+    'huntress',
+    'alpha_wolf',
+    'martyr',
+    'old_man',
+    'time_bandit',
+    'sasquatch',
+    'nostradamus',
+    'bloody_mary',
+    'leprechaun',
+    'chupacabra',
+    'beholder',
+    'the_count',
+    'insomniac',
+    'the_thing',
+    'dream_wolf',
+    'bogeyman',
+    'frankenstein',
+    'blob',
+    'zombie',
+    'count_dracula',
+    'the_mummy',
+    'teenage_werewolf',
+  ]
+  const expansionIndex = typeof id === 'string' ? expansion.indexOf(id) : -1
+  if (expansionIndex >= 0)
+    return {
+      backgroundImage: 'url(/werewolf-host/expansion.webp)',
+      backgroundSize: '825% 425%',
+      backgroundPosition: `${((expansionIndex % 8) * 100) / 7}% ${(Math.floor(expansionIndex / 8) * 100) / 3}%`,
+    }
+  const extra = [
+    'apprentice_seer',
+    'cult_leader',
+    'cupid',
+    'cursed',
+    'diseased',
+    'doppelganger',
+    'drunk',
+    'ghost',
+    'hunter',
+    'lone_wolf',
+    'old_hag',
+    'pi',
+    'tanner',
+    'tough_guy',
+    'vampire',
+    'wolf_cub',
+    'hoodlum',
+    'troublemaker',
+    'priest',
+  ]
+  const extraIndex = typeof id === 'string' ? extra.indexOf(id) : -1
+  if (extraIndex >= 0)
+    return {
+      backgroundImage: 'url(/werewolf-host/basic-extra.webp)',
+      backgroundSize: '525% 425%',
+      backgroundPosition: `${(extraIndex % 5) * 25}% ${(Math.floor(extraIndex / 5) * 100) / 3}%`,
+    }
+  const index = typeof id === 'number' ? id : Math.max(0, artIds.indexOf(id))
+  return {
+    backgroundImage: 'url(/werewolf-host/roles.webp)',
+    backgroundSize: '425% 425%',
+    backgroundPosition: `${[1, 34, 66, 99][index % 4]}% ${[0.7, 32.8, 64.5, 97.5][Math.floor(index / 4)]}%`,
+  }
 }
-
-export const NIGHT_SLEEP: Record<NightStep, string> = {
-  disruptor: 'Kẻ phá hoại hãy nhắm mắt.',
-  cupid: 'Thần tình yêu hãy nhắm mắt.',
-  wolves: 'Bầy sói hãy nhắm mắt.',
-  traitor: 'Kẻ phản bội hãy nhắm mắt.',
-  seer: 'Tiên tri hãy nhắm mắt.',
-  guard: 'Bảo vệ hãy nhắm mắt.',
-  witch: 'Phù thủy hãy nhắm mắt.',
-  hunter: 'Thợ săn hãy nhắm mắt.',
+export const phaseNames: Record<string, string> = {
+  manual: 'Ván đang diễn ra',
+  lobby: 'Chuẩn bị buổi chơi',
+  countdown: 'Chia bài',
+  reveal: 'Nhận lá bài bí mật',
+  dealt: 'Cả làng đã sẵn sàng',
+  night: 'Đêm xuống',
+  dawn: 'Bình minh',
+  day: 'Cả làng thảo luận',
+  nominate: 'Chọn người giải thích',
+  defense: 'Lời biện hộ',
+  verdict: 'Biểu quyết treo cổ',
+  'day-end': 'Khép lại một ngày',
+  'day-extra': 'Phiên biểu quyết thứ hai',
+  'death-action': 'Phát bắn của Thợ săn',
+  ended: 'Hạ màn',
 }
-
-export const ROLE_STEP_MAP: Partial<Record<NightStep, RoleId | RoleId[]>> = {
-  disruptor: 'disruptor',
-  cupid: 'cupid',
-  wolves: ['wolf', 'wolf-cub', 'cursed-wolf'],
-  traitor: 'traitor',
-  seer: 'seer',
-  guard: 'guard',
-  witch: 'witch',
-  hunter: 'hunter',
+export const teamNames: Record<string, string> = {
+  village: 'Phe Dân làng',
+  werewolf: 'Phe Sói',
+  vampire: 'Phe Ma cà rồng',
+  independent: 'Thắng riêng',
+  switching: 'Có thể đổi phe',
+  lovers: 'Cặp đôi khác phe',
+  lone_wolf: 'Sói đơn độc',
+  draw: 'Không phe nào sống sót',
+  aborted: 'Ván đã hủy',
+  utility: 'Lá phụ trợ',
+}
+export function winnerTitle(winner: string | null) {
+  if (winner === 'manual') return 'Quản trò đã kết thúc ván'
+  return winner === 'aborted'
+    ? 'Ván chơi đã được hủy'
+    : winner === 'draw'
+      ? 'Không phe nào sống sót'
+      : `${teamNames[winner || ''] || 'Kết thúc ván'} chiến thắng`
 }
