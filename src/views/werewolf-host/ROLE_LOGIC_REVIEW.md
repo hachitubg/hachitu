@@ -1,5 +1,36 @@
 # Rà soát luật các lá bài
 
+## Cập nhật 20/10/2026: bảy vai mở rộng và chuyển pha mới
+
+Hiện có **50 vai có logic**, 17 vai chỉ dùng trong chế độ bộ bài. Bổ sung Kẻ tử đạo, Bloody Mary, Yêu tinh, Người chứng kiến, Sói chiêm bao, Sói tuổi teen, Xác ướp theo JSON chủ dự án cung cấp. README và `guide_vi` nêu rõ những quy ước tương tác khi JSON chưa có chi tiết.
+
+- Kẻ tử đạo: chờ đủ xác nhận, cứu/không cứu, miễn Hoàng tử trước, chỉ một người tình nguyện chết, xử lý Thợ săn và tình yêu trước kết quả.
+- Bloody Mary: phân biệt nguyên nhân chết Sói/Dân/Ma cà rồng, thao tác khi chết, kiểm tra phe mục tiêu mà không lọc danh sách làm lộ vai, kết quả cá nhân đúng theo phe cần báo thù.
+- Yêu tinh: chuyển vết cắn trước Phù thủy, dùng bảo hộ trên người nhận mới, cấm trùng hai vết cắn, kích hoạt chuyển vai Kẻ bị nguyền, xử lý nhiều Yêu tinh theo lượt riêng.
+- Người chứng kiến: chỉ báo Tiên tri thường, bảo mật hai chiều và không lộ danh tính Kẻ say rượu có lá ẩn Tiên tri.
+- Sói chiêm bao: không thao tác/nhận đề xuất khi ngủ; tay sai chết không đánh thức; Sói thật chết thì thức từ đêm sau. Cờ được phục hồi khi reset.
+- Sói tuổi teen: bước kiểm tra cuối ngày dành riêng quản trò, không mặc định kết quả; bị câm được miễn; phải xác nhận lại từng ngày; chết do vi phạm trước khi sang đêm.
+- Xác ướp: ghi đè đề cử và phán quyết, giữ trọng số Thị trưởng, không kẹt nếu người điều khiển chết, chuỗi/vòng lặp được xử lý hữu hạn.
+- Có thêm 12 ván mô phỏng hỗn hợp cả bảy vai với role cũ; tất cả kết thúc được và không lộ vai/token trong view công khai. Có kiểm thử UI thao tác mới và reset từ bước kiểm tra cuối ngày.
+- Kết quả: **136 test backend/Socket.IO, 53 test frontend, build và lint đạt**. Đây là kiểm chứng các ca đã thiết kế và mô phỏng, không khẳng định đã bao phủ mọi tổ hợp ngoài thực tế.
+
+## Cập nhật 20/10/2026: Người khám phá dùng một lần
+
+Mở Người khám phá với biến thể chủ dự án yêu cầu: được bỏ qua mỗi đêm để giữ lượt, chọn mục tiêu tối đa một lần trong ván, kể cả đoán đúng cũng không tái sử dụng. Quy ước xử lý bảo hộ, phạt chọn nhầm và thời điểm xác định Sói được công bố trong README và `guide_vi`.
+
+Đã kiểm tra: bỏ qua rồi dùng ở đêm sau; khóa lượt đã dùng; không chọn mình/hai người; Sói giả dân là Sói thật; Người lai Sói gây hình phạt; bảo vệ không ngăn tiêu hao; hình phạt không được bảo hộ chặn; Kẻ bị nguyền đổi vai cùng bình minh; Người khám phá chết cùng đêm vẫn có tác dụng; kế thừa tài nguyên và reset đêm. Tổng 111 test backend/Socket.IO đạt. Hiện có 43 vai tự động, 24 vai chỉ chia bài.
+
+## Cập nhật 20/10/2026: bốn Sói Wolfpack
+
+Hiện có 42 vai có logic tự động và 25 vai chỉ dùng trong chế độ bộ bài. Bổ sung Sói trùm, Sói đau khổ, Sói ăn chay và Nanh Sói theo JSON gốc. Quy ước chi tiết và giới hạn đối chiếu nguồn được ghi trong README, mục Bốn Sói mở rộng. Các phần bên dưới giữ kết quả rà soát ban đầu ngày 18/10.
+
+- Sói trùm: một hoặc hai mục tiêu, kiểm tra kề nhau trong vòng sống kể cả đầu/cuối, đồng thuận cả đàn; Sói con ưu tiên hai mục tiêu bất kỳ, không cộng dồn; Con bệnh chặn lượt. Giao diện và server cùng kiểm tra số mục tiêu/kề nhau.
+- Sói đau khổ: lượt liên kết đầu đêm một, thông tin riêng; chết theo một chiều, không bị ban phước chặn; xử lý Thợ săn xong mới chốt thắng. Kiểm thử kế thừa của Người nhân bản, reset đêm và xóa liên kết ván sau.
+- Sói ăn chay: bỏ lượt săn nếu chỉ còn mình, kể cả còn Kẻ phản bội hay thưởng Sói con; vẫn có thể thắng theo số lượng. Khi Nanh Sói còn sống nhưng ngủ, Sói ăn chay vẫn được săn.
+- Nanh Sói: nhận tên đàn đêm đầu, tham gia săn; những đêm sau ngủ nếu còn Sói khác. Không có action/choices khi ngủ, server chặn lệnh giả. Thức lại đầu đêm khi là Sói thật cuối.
+- Cả bốn là Sói thật khi Tiên tri/P.I. kiểm tra, không phải vai ngụy trang. Đã đưa vào kiểm thử luồng nhiều vòng và kiểm thử thắng theo phe.
+- Kết quả cập nhật: 105 test backend/Socket.IO, 48 test frontend đạt; build và lint đạt. Hình riêng đã có trong atlas mở rộng.
+
 Ngày rà soát: 18/10/2026. Phạm vi: 38 vai đã mở (34 cơ bản và 4 mở rộng), engine, phân quyền Socket.IO và giao diện thao tác. Đối chiếu JSON do chủ dự án cung cấp, gồm cả ghi chú từng lá; những biến thể đã chọn được công bố bằng `guide_vi` trong ứng dụng.
 
 ## Lỗi xác nhận và đã sửa

@@ -510,27 +510,59 @@
 .player-deck-preview {
   margin-top: 12px;
 }
-.cards-only-config {
-  display: flex;
-  align-items: flex-start;
+.teen-review-list {
+  display: grid;
+  gap: 12px;
+  margin: 20px 0;
+}
+.teen-review-list article {
+  padding: 14px;
+  border: 1px solid var(--color-border-default);
+  background: var(--color-bg-surface);
+}
+.teen-review-list button[aria-pressed='true'] {
+  border-color: var(--color-accent-coral);
+  background: var(--color-bg-elevated);
+}
+.entry-form .cards-only-config {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: start;
   gap: 12px;
   padding: 14px;
   border: 1px solid var(--color-border-default);
   background: var(--color-bg-deep);
   cursor: pointer;
+  margin: 16px 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.cards-only-config:has(input:checked) {
+  border-color: var(--color-accent-coral);
+  background: var(--color-bg-elevated);
+}
+.cards-only-config:focus-within {
+  outline: 2px solid var(--color-accent-coral);
+  outline-offset: 3px;
 }
 .entry-form .cards-only-config input {
   width: 18px;
+  height: 18px;
   min-height: 18px;
-  margin-top: 3px;
+  margin: 1px 0 0;
   flex-shrink: 0;
   accent-color: var(--color-accent-coral);
+}
+.cards-only-config strong {
+  display: block;
+  color: var(--color-text-primary);
 }
 .cards-only-config small {
   display: block;
   margin-top: 6px;
   color: var(--color-text-secondary);
   line-height: 1.6;
+  font-size: 12px;
 }
 .deck-ribbon .saved-deck-abilities p {
   margin: 6px 0 0;

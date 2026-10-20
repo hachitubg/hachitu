@@ -4,7 +4,7 @@ import { Icon } from '@iconify/vue'
 import { artStyle, teamNames } from '../types'
 import type { Role } from '../types'
 
-const props = defineProps<{ roles: Role[] }>()
+const props = defineProps<{ roles: Role[]; cardsOnly?: boolean }>()
 const query = ref('')
 const faction = ref('')
 const availability = ref<'all' | 'enabled' | 'disabled'>('all')
@@ -70,7 +70,7 @@ const filtered = computed(() =>
         v-for="role in filtered"
         :key="role.id"
         class="library-card"
-        :class="{ unavailable: !role.enabled }"
+        :class="{ unavailable: !role.enabled && !cardsOnly }"
       >
         <div class="library-art" :style="artStyle(role.id)" role="img" :aria-label="role.name_vi" />
         <div class="library-caption">
@@ -84,7 +84,13 @@ const filtered = computed(() =>
                 : `${role.balance_points > 0 ? '+' : ''}${role.balance_points}`
             }}</strong></span
           >
-          <small>{{ role.enabled ? 'Có logic tự động' : 'Chỉ dùng trong chế độ bộ bài' }}</small>
+          <small>{{
+            cardsOnly
+              ? 'Có thể chọn · Quản trò tự điều hành'
+              : role.enabled
+                ? 'Có logic tự động'
+                : 'Chỉ dùng trong chế độ bộ bài'
+          }}</small>
           <p>{{ role.guide_vi || role.ability_vi }}</p>
           <p v-if="role.win_condition_vi">
             <strong>Thắng khi:</strong> {{ role.win_condition_vi }}

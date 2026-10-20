@@ -40,7 +40,31 @@ Khi tạo phòng, quản trò có thể bật **Chỉ dùng bộ bài**. Cấu h
 
 Nguồn dữ liệu nguyên bản: `public/werewolf-host/deck.json`, do chủ dự án cung cấp. Bộ 93 lá gồm 89 lá chia được, 1 Quản trò và 3 Thẻ trống. Có 67 loại vai chơi, không phải 93 vai khác nhau.
 
-Hiện mở **toàn bộ 34 vai chơi của bộ Cơ bản**, có hình riêng và hướng dẫn luật. Giữ thêm 4 vai mở rộng đã có: Sói giả dân, Thám tử Mentalist, Tiên tri bí ẩn và Nữ thợ săn. Tổng cộng 38 vai có thể chọn. Lá Quản trò và Thẻ trống là phụ trợ, không chia cho người chơi.
+Hiện mở **toàn bộ 34 vai chơi của bộ Cơ bản**, có hình riêng và hướng dẫn luật. Thêm 16 vai mở rộng: Sói giả dân, Thám tử Mentalist, Tiên tri bí ẩn, Nữ thợ săn, Sói trùm, Sói đau khổ, Sói ăn chay, Sói răng thỏ (Nanh Sói), Người khám phá, Kẻ tử đạo, Bloody Mary, Yêu tinh, Người chứng kiến, Sói chiêm bao, Sói tuổi teen và Xác ướp. Tổng cộng 50 vai có logic tự động; 17 vai còn lại chỉ chia được trong chế độ bộ bài. Lá Quản trò và Thẻ trống là phụ trợ, không chia cho người chơi.
+
+### Bảy vai mở rộng tiếp theo
+
+Các luật gốc lấy từ JSON chủ dự án cung cấp; các điểm chưa nêu đủ được chốt thành quy ước hiển thị qua `guide_vi`:
+
+| Vai              | Luồng và tương tác                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Kẻ tử đạo        | Có lượt riêng sau quyết định treo cổ và trước cái chết. Chọn hy sinh hoặc bỏ qua, quản trò chốt khi đủ xác nhận. Không cứu chính mình; Hoàng tử dùng miễn treo trước. Nhiều người tình nguyện thì chỉ người đầu theo vòng ngồi hy sinh. Chết thay vẫn kích hoạt tình yêu/liên kết, Ma cà rồng và Thợ săn theo luật thường.                                                                                                                                                 |
+| Bloody Mary      | Khi sống thuộc Dân. Ghi phe nguyên nhân chết: Sói cắn/vết thương cũ là Sói, vết cắn Ma cà rồng là Ma cà rồng, treo cổ/kỹ năng Dân/hình phạt là Dân. Chết dây chuyền giữ phe nguyên nhân gốc. Từ đêm sau, người đã chết được chọn một mục tiêu bất kỳ/bỏ qua, không lộ trước phe mục tiêu. Chỉ đúng phe báo thù mới tấn công; Sói gồm cả Sói thật và tay sai. Bảo hộ có thể chặn. Cuối ván nếu chết thì thắng khi phe gây chết không phải phe thắng chính và ván không hòa. |
+| Yêu tinh         | Lượt sau đàn Sói và trước Phù thủy. Xem danh sách vết cắn, chọn một vết cắn để chuyển sang hàng xóm sống hoặc giữ nguyên. Cho chuyển sang Sói/mình; cấm dồn hai vết cắn lên cùng người. Kiểm tra cứu/bảo vệ/khả năng phản ứng trên người nhận mới. Nhiều Yêu tinh thao tác lần lượt theo vòng ngồi.                                                                                                                                                                        |
+| Người chứng kiến | Lượt xác nhận thông tin đêm đầu: chỉ biết Tiên tri thường đang có, không lộ ngược danh tính. Cần Tiên tri thường trong bộ bài hoặc lá ẩn Kẻ say rượu. Trường hợp lá ẩn chỉ báo chưa xuất hiện. Người nhân bản kế thừa thì được báo các Tiên tri thường đang sống.                                                                                                                                                                                                          |
+| Sói chiêm bao    | Không có lượt săn khi chưa có Sói thật khác chết, kể cả chỉ có mình trong đàn. Tay sai chết không kích hoạt. Các Sói thức biết tên Sói chiêm bao đêm đầu, Sói chiêm bao chưa được biết đồng đội. Sau khi có Sói thật chết, tham gia từ đêm sau. Vẫn bị soi là Sói và tính vào phe khi ngủ.                                                                                                                                                                                 |
+| Sói tuổi teen    | Quản trò xác nhận riêng ở cuối ngày trước đêm tiếp theo: đã nói từ “Sói”/“Ma sói” hay chưa. Không có giá trị mặc định, phải chọn cho từng người rồi chốt. Chưa nói thì chết; xử lý hết chết dây chuyền trước khi kiểm tra thắng. Bị câm/Bà già cấm nói thì miễn ngày đó. Không xử phạt nếu ván đã kết thúc trước hạn kiểm tra. Không tự nhận diện âm thanh.                                                                                                                |
+| Xác ướp          | Chọn một người khác mỗi đêm. Người bị tác động vẫn gửi phiếu để tránh kẹt lượt, nhưng khi chốt cả đề cử/vote lại/treo cổ/phiên phụ đều dùng phiếu Xác ướp, giữ trọng số người bị tác động. Xác ướp chết hoặc bị cấm vote thì dùng phiếu gốc. Ghi đè phiếu bắt buộc của Dân ngốc/Yêu hòa bình. Chuỗi điều khiển đi đến cuối; vòng lặp dùng phiếu gốc mỗi người. Cùng chọn một mục tiêu: Xác ướp cuối theo vòng ngồi có hiệu lực.                                            |
+
+Làm lại đêm khôi phục cả cờ thức tỉnh Sói chiêm bao, phe báo thù của Mary, liên kết phiếu và phần kiểm tra từ khóa. Không gửi các dữ liệu bí mật này trong roster công khai. Lịch sử quản trò ghi rõ các quyết định và phiếu thực tế.
+
+### Người khám phá: luật một lần theo yêu cầu chủ dự án
+
+- Mỗi đêm còn sống và chưa dùng được chọn một người khác, hoặc xác nhận bỏ qua. Cả ván chỉ một lần sử dụng, kể cả khi đoán đúng. Không cho chọn mình hoặc hai mục tiêu. Không thực hiện ngoài lượt ban đêm.
+- Chốt dùng sẽ tiêu hao lượt; kết quả được xử lý vào bình minh sau độc/Nữ thợ săn. Sói thật được xét tại thời điểm chốt, gồm cả Sói giả dân và Nanh Sói ngủ. Chọn Sói thật thì tấn công mục tiêu; Bảo vệ/ban phước có thể chặn nhưng lượt vẫn mất.
+- Chọn không phải Sói thật (kể cả Người lai Sói, tay sai hoặc Kẻ bị nguyền chưa chuyển vai) thì Người khám phá chết. Bảo vệ/ban phước/bình cứu không chặn hình phạt này. Giữ nguyên các tương tác chết theo liên kết và Thợ săn.
+- Lượt đã chốt vẫn giải quyết nếu Người khám phá chết cùng đêm. Người nhân bản kế thừa trạng thái đã dùng/chưa dùng; làm lại đêm khôi phục tài nguyên theo bản chụp. Mỗi đêm mới xóa hành động chờ của đêm trước.
+- JSON gốc vẫn giữ mô tả phiên bản ban đầu để đối chiếu. `guide_vi` ghi luật một lần đã thay đổi, được dùng trên thẻ, thư viện, chọn bộ bài và màn hình điều hành.
 
 Các vai mở rộng khác vẫn tạm hoãn. `server/werewolf/basic-guides.mjs` ghi các biến thể áp dụng; `guide_vi` hiện ngay trong giao diện thẻ và lượt chơi. JSON gốc được giữ nguyên để đối chiếu. Bộ gợi ý ưu tiên vai cơ bản; quản trò có thể cấu hình tất cả 34 vai.
 
@@ -53,7 +77,16 @@ Các quy ước của bản này:
 - Thị trưởng có trọng số 2 ở cả đề cử và phán quyết. Người yêu hòa bình phải chọn Không, Dân ngốc phải chọn Có ở vòng treo cổ.
 - Hoàng tử được miễn lần treo đầu và công khai vai. Pháp sư câm không lặp mục tiêu suốt ván; người bị câm vẫn vote.
 - Hội Tam điểm phải đủ 2 lá. Tiên tri Sói chỉ thêm khi có Tiên tri thường.
-- Dân thắng khi không còn Sói thật, Ma cà rồng hay mối nguy từ lá ẩn chưa tỉnh của Kẻ say rượu. Sói thắng theo số lượng khi còn Sói thường/Sói con/Sói giả dân và không còn Ma cà rồng. Ma cà rồng thắng khi mọi người sống đều thuộc phe này.
+- Dân thắng khi không còn Sói thật, Ma cà rồng hay mối nguy từ lá ẩn chưa tỉnh của Kẻ say rượu. Sói thắng theo số lượng khi còn Sói thật ngoài Sói đơn độc và không còn Ma cà rồng; tính cả Sói ăn chay không săn được và Nanh Sói đang ngủ. Ma cà rồng thắng khi mọi người sống đều thuộc phe này.
+
+### Bốn Sói mở rộng
+
+- **Sói trùm:** mỗi lượt đàn chọn một người hoặc hai người kề nhau trong vòng sống; bỏ qua chỗ chết và nối đầu/cuối vòng. Phải thống nhất cả tập mục tiêu. Thưởng Sói con bắt buộc hai mục tiêu bất kỳ, không cộng thành ba. Con bệnh ưu tiên chặn lượt săn. Bình cứu chỉ cứu một nạn nhân. Đòn đã chốt vẫn có hiệu lực nếu Sói trùm chết cùng bình minh.
+- **Sói đau khổ:** lượt riêng đầu đêm một, chọn một người khác, kể cả Sói theo mô tả JSON không giới hạn phe. Liên kết bí mật một chiều: mục tiêu chết khiến Sói đau khổ chết theo, không bị bảo hộ chặn; chiều ngược không xảy ra. Người nhân bản nhận cả liên kết. Các cái chết liên quan/Thợ săn xử lý xong mới chốt thắng. Reset đêm một xóa liên kết để chọn lại.
+- **Sói ăn chay:** vẫn được cả đàn nhận diện và bị soi là Sói; không thể cắn nếu là Sói thật cuối cùng, kể cả còn tay sai hoặc có thưởng Sói con. Nếu còn Nanh Sói đang ngủ thì vẫn chưa phải Sói cuối, nên được săn. Có thể thắng bằng phiếu/số lượng.
+- **Nanh Sói:** đêm đầu nhận tên Sói và tham gia săn theo nhịp đêm đầu của app. Từ đêm hai, chỉ có lượt nếu là Sói thật cuối cùng; lúc ngủ không nhận đề xuất hoặc quyền xác nhận của đàn. Tay sai không ngăn thức dậy. Xét trạng thái đầu mỗi đêm, không mở lượt giữa bình minh.
+
+Nguồn triển khai chính là bốn mô tả/ghi chú trong JSON do chủ dự án cung cấp. Đã tham khảo [rulebook Ultimate Werewolf do Pegasus phát hành](https://cdn.pegasus.de/public/media/5f/1f/6e/1717757324/4250231704208_gb.pdf?ts=1752574418) cho khung điều hành, nhưng bản đó không bao gồm bốn lá Wolfpack, nên không dùng để khẳng định mọi chi tiết của phần mở rộng. Các tương tác chưa nêu trong JSON được chốt thành quy ước ở trên và trong `guide_vi`; không áp dụng luật Big Bad Wolf của game Ma Sói khác.
 
 ### Các vai cơ bản bổ sung
 
@@ -80,7 +113,7 @@ Các quy ước của bản này:
 
 Thắng riêng được tính từng người qua `myWon` và lịch sử `won`; không suy từ nhãn phe thắng chung. Cặp đôi khác phe ưu tiên thắng cặp đôi. Khi không ai sống, không phe chính nào thắng nhưng vẫn xét mục tiêu cá nhân. Lịch sử lưu vai ban đầu và vai cuối.
 
-Thứ tự bình minh: vết thương Lực sĩ cũ → Sói → độc → Nữ thợ săn → vết cắn Ma cà rồng → Hồn ma đêm đầu. Mỗi cái chết xử lý kế thừa và cặp đôi; xử lý Thợ săn trước khi chuyển pha hoặc kết thúc ván.
+Thứ tự bình minh: vết thương Lực sĩ cũ → Sói → độc → Nữ thợ săn → Người khám phá → Bloody Mary → đánh dấu vết cắn Ma cà rồng → Hồn ma đêm đầu. Yêu tinh đã chuyển vết cắn trước đó trong lượt đêm, trước Phù thủy. Mỗi cái chết xử lý kế thừa, cặp đôi và Sói đau khổ; xử lý Thợ săn trước khi chuyển pha hoặc kết thúc ván.
 
 ## Dữ liệu và kết nối
 

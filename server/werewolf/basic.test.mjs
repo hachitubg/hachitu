@@ -33,6 +33,13 @@ function setup(cards, hidden = 'villager') {
 }
 function night(room, choose = () => null) {
   host(room, 'next')
+  if (room.phase === 'teen-review') {
+    view(room, room.members[0]).teenChecks.forEach((check) =>
+      host(room, 'teen-check', { playerId: check.id, spoken: true }),
+    )
+    host(room, 'next')
+    host(room, 'next')
+  }
   let turns = 0
   while (room.turn && room.phase === 'night') {
     assert.ok(++turns < 50)
@@ -576,11 +583,412 @@ test('Priest blessing absorbs one attack, not both a wolf bite and poison in the
   assert.equal(room.deaths.filter((id) => id === p[3].id).length, 1)
 })
 
+test('Big Bad Wolf permits one victim or adjacent living victims, including the seating wrap', () => {
+  const room = setup([
+    'big_bad_wolf',
+    'villager',
+    'villager',
+    'villager',
+    'villager',
+    'villager',
+    'villager',
+  ])
+  const p = players(room)
+  p[2].alive = false
+  host(room, 'next')
+  const spec = view(room, p[0]).action
+  assert.equal(spec.min, 1)
+  assert.equal(spec.max, 2)
+  assert.equal(spec.adjacentPair, true)
+  assert.throws(() => act(room, p[0], 'confirm', { targets: [p[1].id, p[4].id] }), /ngồi cạnh/)
+  assert.throws(() => act(room, p[0], 'confirm', { targets: [] }), /Chọn từ/)
+  assert.ok(spec.pairs.some((pair) => pair.includes(p[1].id) && pair.includes(p[3].id)))
+  room.seatOrder = [p[1].id, p[0].id, p[3].id, p[4].id, p[5].id, p[6].id, p[2].id]
+  act(room, p[0], 'draft', { targets: [p[1].id, p[6].id] })
+  act(room, p[0], 'confirm', { targets: [p[6].id, p[1].id] })
+  host(room, 'next')
+  host(room, 'next')
+  tick(room, room.deadline)
+  assert.equal(p[1].alive, false)
+  assert.equal(p[6].alive, false)
+})
+
+test('Big Bad Wolf double bite uses pack consensus and the witch rescues only one victim', () => {
+  const room = setup([
+    'big_bad_wolf',
+    'werewolf',
+    'witch',
+    'villager',
+    'villager',
+    'villager',
+    'villager',
+    'villager',
+    'villager',
+  ])
+  const p = players(room)
+  host(room, 'next')
+  act(room, p[0], 'draft', { targets: [p[3].id, p[4].id] })
+  act(room, p[1], 'draft', { targets: [p[5].id] })
+  assert.throws(() => act(room, p[0], 'confirm', { targets: [p[3].id, p[4].id] }), /thống nhất/)
+  act(room, p[1], 'draft', { targets: [p[4].id, p[3].id] })
+  act(room, p[0], 'confirm', { targets: [p[3].id, p[4].id] })
+  act(room, p[1], 'confirm', { targets: [p[4].id, p[3].id] })
+  host(room, 'next')
+  assert.deepEqual(new Set(view(room, p[2]).action.wolfTargets), new Set([p[3].id, p[4].id]))
+  act(room, p[2], 'confirm', { targets: [], save: true, saveTarget: p[4].id })
+  host(room, 'next')
+  host(room, 'next')
+  tick(room, room.deadline)
+  assert.equal(p[3].alive, false)
+  assert.equal(p[4].alive, true)
+})
+
+test('Cub bonus overrides adjacency without stacking a third victim, and disease skips the entire hunt', () => {
+  const room = setup([
+    'big_bad_wolf',
+    'wolf_cub',
+    'villager',
+    'villager',
+    'diseased',
+    'villager',
+    'villager',
+    'villager',
+    'villager',
+  ])
+  const p = players(room)
+  room.round = 1
+  execute(room, p[1])
+  night(room, (key, actor, spec) => {
+    if (key !== 'wolves') return null
+    assert.equal(spec.max, 2)
+    assert.equal(spec.min, 2)
+    assert.equal(spec.adjacentPair, false)
+    assert.throws(() => act(room, actor, 'confirm', { targets: [p[2].id] }))
+    return { targets: [p[4].id, p[6].id] }
+  })
+  assert.equal(p[4].alive, false)
+  assert.equal(p[6].alive, false)
+  blankDay(room)
+  host(room, 'next')
+  assert.equal(room.turn, null)
+  assert.equal(view(room, p[0]).action, null)
+})
+
+test('Dire Wolf link is private, one-way, and death follows the target despite a blessing', () => {
+  const room = setup([
+    'dire_wolf',
+    'priest',
+    'hunter',
+    'villager',
+    'villager',
+    'villager',
+    'villager',
+  ])
+  const p = players(room)
+  night(room, (key) =>
+    key === 'dire_wolf'
+      ? { targets: [p[2].id] }
+      : key === 'priest'
+        ? { targets: [p[0].id] }
+        : key === 'wolves'
+          ? { targets: [p[5].id] }
+          : null,
+  )
+  assert.equal(p[0].direTarget, p[2].id)
+  assert.equal(
+    view(room, p[2]).notes.some((note) => note.includes('liên kết')),
+    false,
+  )
+  execute(room, p[2])
+  assert.equal(p[0].alive, false)
+  assert.equal(p[0].used.blessed, true)
+  assert.equal(room.phase, 'death-action')
+  act(room, p[2], 'confirm', { targets: [] })
+  host(room, 'next')
+  assert.equal(room.winner, 'village')
+  host(room, 'reset-night')
+  assert.equal(p[0].direTarget, null)
+  assert.equal(room.turn.key, 'dire_wolf')
+})
+
+test('Dire Wolf death does not kill its linked person; the next game clears the link', () => {
+  const room = setup(['dire_wolf', 'villager', 'villager', 'villager', 'villager', 'villager'])
+  const p = players(room)
+  night(room, (key) => (key === 'dire_wolf' ? { targets: [p[2].id] } : { targets: [p[4].id] }))
+  execute(room, p[0])
+  assert.equal(p[2].alive, true)
+  assert.equal(room.winner, 'village')
+  host(room, 'rematch')
+  p.forEach((person) => act(room, person, 'ready'))
+  host(room, 'start')
+  assert.ok(p.every((person) => person.direTarget === null))
+})
+
+test('Doppelganger inherits the Dire Wolf link and dies if that target later dies', () => {
+  const room = setup([
+    'dire_wolf',
+    'doppelganger',
+    'villager',
+    'villager',
+    'villager',
+    'villager',
+    'villager',
+    'villager',
+  ])
+  const p = players(room)
+  night(room, (key) =>
+    key === 'dire_wolf'
+      ? { targets: [p[2].id] }
+      : key === 'doppelganger'
+        ? { targets: [p[0].id] }
+        : { targets: [p[6].id] },
+  )
+  execute(room, p[0])
+  assert.equal(p[1].role, 'dire_wolf')
+  assert.equal(p[1].direTarget, p[2].id)
+  assert.notEqual(room.phase, 'ended')
+  execute(room, p[2])
+  assert.equal(p[1].alive, false)
+  assert.equal(room.winner, 'village')
+})
+
+test('Fruit Brute has no hunt when last true wolf even with a Minion or a Cub bonus', () => {
+  const room = setup([
+    'fruit_brute',
+    'minion',
+    'villager',
+    'villager',
+    'villager',
+    'villager',
+    'villager',
+  ])
+  const p = players(room)
+  room.doubleBiteNight = 1
+  host(room, 'next')
+  assert.equal(room.turn.key, 'minion')
+  act(room, p[1], 'confirm', { targets: [] })
+  assert.match(p[1].notes[0], new RegExp(p[0].name))
+  host(room, 'next')
+  assert.equal(room.turn, null)
+  assert.equal(view(room, p[0]).action, null)
+  assert.throws(() => act(room, p[0], 'confirm', { targets: [p[2].id] }), /Chưa tới lượt/)
+  host(room, 'next')
+  tick(room, room.deadline)
+  assert.deepEqual(room.deaths, [])
+  assert.equal(room.phase, 'day')
+  p[3].alive = p[4].alive = p[5].alive = false
+  execute(room, p[6])
+  assert.equal(room.winner, 'werewolf')
+  assert.equal(p[0].wins, 1)
+})
+
+test('Fang Face knows the first pack, sleeps privately later, and hunts when it is last', () => {
+  const room = setup([
+    'fang_face',
+    'fruit_brute',
+    'villager',
+    'villager',
+    'villager',
+    'villager',
+    'villager',
+    'villager',
+    'villager',
+  ])
+  const p = players(room)
+  night(room, (key) => (key === 'wolves' ? { targets: [p[8].id] } : null))
+  assert.ok(p[0].notes.some((note) => note.includes(p[1].name)))
+  blankDay(room)
+  host(room, 'next')
+  assert.deepEqual(room.turn.actors, [p[1].id])
+  act(room, p[1], 'draft', { targets: [p[7].id] })
+  assert.equal(view(room, p[0]).action, null)
+  assert.deepEqual(view(room, p[0]).choices, [])
+  assert.throws(() => act(room, p[0], 'confirm', { targets: [p[7].id] }), /Chưa tới lượt/)
+  act(room, p[1], 'confirm', { targets: [p[7].id] })
+  host(room, 'next')
+  host(room, 'next')
+  tick(room, room.deadline)
+  execute(room, p[1])
+  host(room, 'next')
+  assert.deepEqual(room.turn.actors, [p[0].id])
+  assert.equal(view(room, p[0]).action.max, 1)
+})
+
+for (const wolfRole of ['big_bad_wolf', 'dire_wolf', 'fruit_brute', 'fang_face']) {
+  test(`Seer recognizes ${wolfRole} as a true wolf and the role can win with its faction`, () => {
+    const room = setup([
+      wolfRole,
+      'seer',
+      'villager',
+      'villager',
+      'villager',
+      'villager',
+      'villager',
+    ])
+    const p = players(room)
+    night(room, (key) =>
+      key === 'seer'
+        ? { targets: [p[0].id] }
+        : key === 'dire_wolf'
+          ? { targets: [p[2].id] }
+          : key === 'wolves'
+            ? { targets: [p[6].id] }
+            : null,
+    )
+    assert.match(p[1].notes[0], /: Sói\./)
+    assert.equal(view(room, p[2]).members.find((person) => person.id === p[0].id).role, null)
+    p[3].alive = p[4].alive = p[5].alive = p[6].alive = false
+    execute(room, p[1])
+    assert.equal(room.winner, 'werewolf')
+    assert.equal(p[0].wins, 1)
+  })
+}
+
+test('Revealer can wait, then use exactly one attempt even after correctly finding a wolf', () => {
+  const room = setup([
+    'werewolf',
+    'wolf_man',
+    'revealer',
+    'villager',
+    'villager',
+    'villager',
+    'villager',
+    'villager',
+    'villager',
+  ])
+  const p = players(room)
+  night(room, (key, actor, spec) => {
+    if (key === 'wolves') return { targets: [p[8].id] }
+    if (key === 'revealer') {
+      assert.equal(spec.optional, true)
+      assert.equal(spec.max, 1)
+      assert.equal(spec.options.includes(actor.id), false)
+      return { targets: [] }
+    }
+    return null
+  })
+  assert.equal(p[2].used.revealer, undefined)
+  blankDay(room)
+  night(room, (key, actor) => {
+    if (key === 'wolves') return { targets: [p[7].id] }
+    if (key === 'revealer') {
+      assert.throws(() => act(room, actor, 'confirm', { targets: [p[0].id, p[1].id] }))
+      return { targets: [p[1].id] }
+    }
+    return null
+  })
+  assert.equal(p[1].alive, false)
+  assert.equal(p[2].alive, true)
+  assert.equal(p[2].used.revealer, true)
+  blankDay(room)
+  host(room, 'next')
+  assert.ok(!room.queue.some((turn) => turn.key === 'revealer'))
+  assert.throws(() => act(room, p[2], 'confirm', { targets: [p[0].id] }), /Chưa tới lượt/)
+})
+
+test('Revealer loses the attempt even if the true wolf is protected; reset restores it', () => {
+  const room = setup([
+    'werewolf',
+    'revealer',
+    'bodyguard',
+    'villager',
+    'villager',
+    'villager',
+    'villager',
+  ])
+  const p = players(room)
+  night(room, (key) =>
+    key === 'wolves'
+      ? { targets: [p[6].id] }
+      : ['bodyguard', 'revealer'].includes(key)
+        ? { targets: [p[0].id] }
+        : null,
+  )
+  assert.equal(p[0].alive, true)
+  assert.equal(p[1].alive, true)
+  assert.equal(p[1].used.revealer, true)
+  host(room, 'reset-night')
+  assert.equal(p[1].used.revealer, undefined)
+  assert.deepEqual(room.revelations, [])
+})
+
+test('Revealer selecting a Lycan dies even when personally protected and blessed', () => {
+  const room = setup([
+    'werewolf',
+    'revealer',
+    'lycan',
+    'bodyguard',
+    'priest',
+    'villager',
+    'villager',
+    'villager',
+  ])
+  const p = players(room)
+  night(room, (key) =>
+    key === 'wolves'
+      ? { targets: [p[7].id] }
+      : ['bodyguard', 'priest'].includes(key)
+        ? { targets: [p[1].id] }
+        : key === 'revealer'
+          ? { targets: [p[2].id] }
+          : null,
+  )
+  assert.equal(p[1].alive, false)
+  assert.equal(p[2].alive, true)
+  assert.equal(p[1].used.blessed, true)
+  assert.equal(p[1].used.revealer, true)
+})
+
+test('Revealer uses the target role when confirmed, before a Cursed conversion at dawn', () => {
+  const room = setup([
+    'werewolf',
+    'revealer',
+    'cursed',
+    'villager',
+    'villager',
+    'villager',
+    'villager',
+  ])
+  const p = players(room)
+  night(room, (key) => (['wolves', 'revealer'].includes(key) ? { targets: [p[2].id] } : null))
+  assert.equal(p[2].role, 'werewolf')
+  assert.equal(p[1].alive, false)
+})
+
+test('A dead Revealer still resolves a confirmed attempt and inheritance retains the spent skill', () => {
+  const room = setup([
+    'werewolf',
+    'wolf_man',
+    'revealer',
+    'doppelganger',
+    'villager',
+    'villager',
+    'villager',
+    'villager',
+    'villager',
+  ])
+  const p = players(room)
+  night(room, (key) =>
+    key === 'wolves' || key === 'doppelganger'
+      ? { targets: [p[2].id] }
+      : key === 'revealer'
+        ? { targets: [p[1].id] }
+        : null,
+  )
+  assert.equal(p[2].alive, false)
+  assert.equal(p[1].alive, false)
+  assert.equal(p[3].role, 'revealer')
+  assert.equal(p[3].used.revealer, true)
+  blankDay(room)
+  host(room, 'next')
+  assert.ok(!room.queue.some((turn) => turn.key === 'revealer'))
+})
+
 for (const key of SUPPORTED) {
   test(`full phase flow for supported role: ${key}`, () => {
     const cards = key === 'werewolf' ? ['werewolf'] : ['werewolf', key]
     if (key === 'mason') cards.push('mason')
-    if (['sorceress', 'apprentice_seer'].includes(key)) cards.push('seer')
+    if (['sorceress', 'apprentice_seer', 'beholder'].includes(key)) cards.push('seer')
     while (cards.length < 9) cards.push('villager')
     const room = setup(cards)
     for (let round = 0; round < 4 && room.phase !== 'ended'; round++) {

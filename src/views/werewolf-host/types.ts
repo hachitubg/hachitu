@@ -53,6 +53,7 @@ export interface History {
   }[]
 }
 export interface RoomState {
+  teenChecks?: { id: string; spoken: boolean | null }[]
   cardsOnly: boolean
   canResetNight: boolean
   code: string
@@ -88,9 +89,13 @@ export interface RoomState {
     targets: string[]
     save: boolean
     saveTarget: string | null
+    redirectFrom?: string | null
     text: string
     activate: boolean
     max: number
+    min?: number
+    adjacentPair?: boolean
+    pairs?: string[][]
     optional: boolean
     kind: 'targets' | 'letter' | 'activate'
     used: Record<string, boolean>
@@ -102,6 +107,7 @@ export interface RoomState {
     targets: string[]
     save: boolean
     saveTarget?: string | null
+    redirectFrom?: string | null
     text?: string
     activate?: boolean
     confirmed: boolean
@@ -144,6 +150,8 @@ export interface Input {
   targets?: string[]
   save?: boolean
   saveTarget?: string | null
+  redirectFrom?: string | null
+  spoken?: boolean
   text?: string
   activate?: boolean
   vote?: string | boolean | null
@@ -244,6 +252,8 @@ export function artStyle(id: string | number) {
   }
 }
 export const phaseNames: Record<string, string> = {
+  martyr: 'Quyết định của Kẻ tử đạo',
+  'teen-review': 'Kiểm tra điều kiện cuối ngày',
   manual: 'Ván đang diễn ra',
   lobby: 'Chuẩn bị buổi chơi',
   countdown: 'Chia bài',

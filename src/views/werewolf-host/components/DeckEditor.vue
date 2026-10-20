@@ -75,6 +75,10 @@ function save() {
 </script>
 <template>
   <section class="deck-editor">
+    <p v-if="cardsOnly" class="fineprint">
+      Chế độ chỉ dùng bộ bài: được chọn tất cả 67 vai, kể cả vai chưa có logic tự động. Bấm một lá
+      đang chọn để thay bằng lá khác.
+    </p>
     <div class="deck-status">
       <b>{{ filled }}/{{ count }} lá</b><span>Điểm {{ score > 0 ? '+' : '' }}{{ score }}</span
       ><button v-if="!readonly" :disabled="disabled || count < 5" @click="emit('suggest')">

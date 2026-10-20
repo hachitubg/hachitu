@@ -26,6 +26,18 @@ const EXISTING_SUPPORTED = [
   'mystic_seer',
   'priest',
   'huntress',
+  'big_bad_wolf',
+  'dire_wolf',
+  'fruit_brute',
+  'fang_face',
+  'revealer',
+  'martyr',
+  'bloody_mary',
+  'leprechaun',
+  'beholder',
+  'dream_wolf',
+  'teenage_werewolf',
+  'the_mummy',
 ]
 export const SUPPORTED = [
   ...new Set([
@@ -47,7 +59,18 @@ export const catalog = deck.sets.flatMap((set) =>
   })),
 )
 const roles = new Map(catalog.map((role) => [role.id, role]))
-const wolves = new Set(['werewolf', 'wolf_man', 'wolf_cub', 'lone_wolf'])
+const wolves = new Set([
+  'werewolf',
+  'wolf_man',
+  'wolf_cub',
+  'lone_wolf',
+  'big_bad_wolf',
+  'dire_wolf',
+  'fruit_brute',
+  'fang_face',
+  'dream_wolf',
+  'teenage_werewolf',
+])
 const id = () => randomBytes(16).toString('hex')
 export const players = (room) => room.members.filter((member) => !member.host)
 const alive = (room) => players(room).filter((member) => member.alive)
@@ -62,6 +85,29 @@ const team = (member) => {
   return !value || value === 'switching' ? 'village' : value
 }
 const wolf = (member) => wolves.has(member.role)
+const livingRing = (room) =>
+  (room.seatOrder?.length ? room.seatOrder : players(room).map((p) => p.id))
+    .map((id) => room.members.find((p) => p.id === id))
+    .filter((p) => p?.alive)
+const adjacent = (room, a, b) => {
+  const ring = livingRing(room),
+    i = ring.findIndex((p) => p.id === a),
+    j = ring.findIndex((p) => p.id === b)
+  return (
+    i >= 0 && j >= 0 && i !== j && (Math.abs(i - j) === 1 || Math.abs(i - j) === ring.length - 1)
+  )
+}
+function huntingWolves(room) {
+  const pack = alive(room).filter(wolf)
+  if (pack.length === 1 && pack[0].role === 'fruit_brute') return []
+  return pack.filter(
+    (p) =>
+      (p.role !== 'fang_face' || room.round === 1 || pack.length === 1) &&
+      (p.role !== 'dream_wolf' || room.wolfDied),
+  )
+}
+const bigWolfBite = (room) =>
+  alive(room).some((p) => p.role === 'big_bad_wolf') && room.doubleBiteNight !== room.round
 const affiliation = (member) =>
   team(member) === 'independent' ? `${member.role}:${member.id}` : team(member)
 const seerWolf = (member) => member.role === 'lycan' || (wolf(member) && member.role !== 'wolf_man')
@@ -220,6 +266,10 @@ export function validateDeck(list, count, drunkRole = 'villager', cardsOnly = fa
     !counts.has('apprentice_seer') || counts.has('seer'),
     'Tiên tri tập sự cần có Tiên tri thường trong bộ bài.',
   )
+  check(
+    !counts.has('beholder') || counts.has('seer') || (counts.has('drunk') && drunkRole === 'seer'),
+    'Người chứng kiến cần Tiên tri thường trong bộ bài hoặc lá ẩn.',
+  )
   return list.reduce((sum, key) => sum + role(key).balance_points, 0)
 }
 export function suggestDeck(count) {
@@ -349,6 +399,8 @@ function recordWinner(room) {
       won =
         living.length > 0 &&
         living.every((target) => (p.followers || []).includes(target.id) || target.id === p.id)
+    if (p.role === 'bloody_mary' && !p.alive)
+      won = !!p.revengeTeam && winner !== p.revengeTeam && winner !== 'draw'
     won = Boolean(won)
     if (mixedPartner) won = winner === 'lovers'
     if (won) p.wins++
@@ -366,11 +418,22 @@ function recordWinner(room) {
   room.history.push({ game: room.game, winner, players: summary, logs: [...room.logs] })
   return true
 }
-function kill(room, person, reason) {
+function kill(room, person, reason, killerTeam = 'village') {
   if (!person?.alive) return
   person.alive = false
   person.deathRound = room.round
   person.deathReason = reason
+  if (wolf(person)) room.wolfDied = true
+  if (person.role === 'bloody_mary') {
+    person.revengeTeam = killerTeam
+    person.notes.push(
+      `Phe khiến bạn chết: ${killerTeam === 'werewolf' ? 'Sói' : killerTeam === 'vampire' ? 'Ma cà rồng' : 'Dân làng'}. Từ đêm sau, chọn một người để báo thù. Chỉ người thuộc phe đó mới bị tấn công.`,
+    )
+    log(
+      room,
+      `Bloody Mary (${person.name}) sẽ báo thù phe ${{ village: 'Dân làng', werewolf: 'Sói', vampire: 'Ma cà rồng' }[killerTeam] || killerTeam}.`,
+    )
+  }
   room.deaths.push(person.id)
   const endings = {
     'Sói cắn': 'chết vì bị Sói cắn',
@@ -407,6 +470,7 @@ function kill(room, person, reason) {
     clone.lastGuard = person.lastGuard
     clone.followers = [...(person.followers || [])]
     clone.hoodlumTargets = [...(person.hoodlumTargets || [])]
+    clone.direTarget = person.direTarget || null
     clone.notes.push(`Bạn đã thừa hưởng vai ${role(clone.role).name_vi} từ ${person.name}.`)
     log(
       room,
@@ -426,12 +490,26 @@ function kill(room, person, reason) {
           .map((p) => p.name)
           .join(', ')}.`,
       )
+    if (clone.role === 'beholder')
+      clone.notes.push(
+        `Tiên tri thường: ${
+          alive(room)
+            .filter((p) => p.role === 'seer')
+            .map((p) => p.name)
+            .join(', ') || 'chưa xuất hiện hoặc đã chết'
+        }.`,
+      )
     if (clone.role === 'ghost') kill(room, clone, 'trở thành Hồn ma')
   }
   const partner = (room.lovers || []).includes(person.id)
     ? room.members.find((p) => p.id !== person.id && room.lovers.includes(p.id))
     : null
-  if (partner?.alive) kill(room, partner, `đau buồn vì người yêu ${person.name} đã chết`)
+  if (partner?.alive)
+    kill(room, partner, `đau buồn vì người yêu ${person.name} đã chết`, killerTeam)
+  for (const linked of alive(room).filter(
+    (p) => p.role === 'dire_wolf' && p.direTarget === person.id,
+  ))
+    kill(room, linked, `mất liên kết với ${person.name}`, killerTeam)
 }
 function advanceHunter(room) {
   const id = room.pendingHunters?.shift()
@@ -458,7 +536,7 @@ function afterBallot(room, forceEnd = false) {
   for (const p of alive(room))
     if (p.vampireDue && p.vampireDue <= room.round) {
       p.vampireDue = null
-      kill(room, p, 'vết cắn của Ma cà rồng')
+      kill(room, p, 'vết cắn của Ma cà rồng', 'vampire')
       room.lastSummary += ` ${p.name} chết vì vết cắn Ma cà rồng.`
     }
   settle(room, room.executionsLeft > 0 ? 'day-extra' : 'day-end')
@@ -475,6 +553,11 @@ function beginNight(room, checkpoint = true) {
   room.heals = []
   room.poisons = []
   room.shots = []
+  room.revelations = []
+  room.revengeAttacks = []
+  room.mummyLinks = {}
+  room.teenChecks = {}
+  room.teenReviewRound = null
   room.pendingClues = []
   room.wolfTargets = []
   room.wolfTarget = null
@@ -505,32 +588,45 @@ function beginNight(room, checkpoint = true) {
   }
   const byRole = (key) => available.filter((p) => p.role === key).map((p) => p.id)
   if (room.round === 1) {
-    for (const key of ['cupid', 'doppelganger', 'hoodlum']) add(key, byRole(key))
+    for (const key of ['cupid', 'doppelganger', 'hoodlum', 'dire_wolf']) add(key, byRole(key))
     add('mason', byRole('mason'))
     add('minion', byRole('minion'))
+    add('beholder', byRole('beholder'))
   }
   for (const key of [
     'priest',
     'bodyguard',
     'wolves',
+    'leprechaun',
     'vampires',
     'witch',
     'huntress',
+    'revealer',
     'seer',
     'apprentice_seer',
     'aura_seer',
     'mystic_seer',
     'mentalist',
     'sorceress',
+    'the_mummy',
     'spellcaster',
     'old_hag',
     'cult_leader',
     'pi',
     'troublemaker',
     'ghost',
+    'bloody_mary',
   ]) {
     if (key === 'wolves' && room.sickNight === room.round) {
       log(room, 'Đàn Sói đang mắc bệnh nên không săn trong đêm nay.')
+      continue
+    }
+    if (key === 'wolves' && !huntingWolves(room).length) {
+      if (available.some(wolf))
+        log(
+          room,
+          'Không có Sói đủ điều kiện đi săn trong đêm nay (Sói ăn chay cuối cùng hoặc Sói chiêm bao chưa tỉnh).',
+        )
       continue
     }
     if (
@@ -543,22 +639,36 @@ function beginNight(room, checkpoint = true) {
       continue
     const actors =
       key === 'wolves'
-        ? available.filter(wolf)
+        ? huntingWolves(room)
         : key === 'vampires'
           ? available.filter((p) => p.role === 'vampire')
-          : key === 'ghost'
+          : key === 'bloody_mary'
             ? players(room).filter(
-                (p) => p.role === 'ghost' && !p.alive && room.round > (p.deathRound || 0),
-              )
-            : available.filter(
                 (p) =>
-                  p.role === key &&
-                  (!['priest', 'huntress', 'pi', 'troublemaker'].includes(key) || !p.used[key]),
+                  p.role === 'bloody_mary' &&
+                  !p.alive &&
+                  p.revengeTeam &&
+                  room.round > p.deathRound,
               )
-    add(
-      key,
-      actors.map((p) => p.id),
-    )
+            : key === 'ghost'
+              ? players(room).filter(
+                  (p) => p.role === 'ghost' && !p.alive && room.round > (p.deathRound || 0),
+                )
+              : available.filter(
+                  (p) =>
+                    p.role === key &&
+                    (!['priest', 'huntress', 'revealer', 'pi', 'troublemaker'].includes(key) ||
+                      !p.used[key]),
+                )
+    if (key === 'leprechaun') {
+      for (const actor of livingRing(room).filter((p) => actors.includes(p))) add(key, [actor.id])
+    } else
+      add(
+        key,
+        (key === 'the_mummy' ? livingRing(room).filter((p) => actors.includes(p)) : actors).map(
+          (p) => p.id,
+        ),
+      )
   }
   players(room).forEach((p) => (p.silenced = false))
   room.turn = room.queue.shift() || null
@@ -573,7 +683,13 @@ function candidates(room, person) {
       if (key === 'vampires') return target.role !== 'vampire'
       if (key === 'cult_leader')
         return target.id !== person.id && !(person.followers || []).includes(target.id)
-      if (['ghost', 'troublemaker', 'mason', 'minion'].includes(key)) return false
+      if (['ghost', 'troublemaker', 'mason', 'minion', 'beholder', 'martyr'].includes(key))
+        return false
+      if (key === 'leprechaun')
+        return (room.wolfTargets || []).some(
+          (source) =>
+            adjacent(room, source, target.id) && !(room.wolfTargets || []).includes(target.id),
+        )
       if (key === 'bodyguard') return target.id !== person.lastGuard
       if (key === 'spellcaster')
         return target.id !== person.id && !person.used[`silenced:${target.id}`]
@@ -582,6 +698,7 @@ function candidates(room, person) {
           'seer',
           'apprentice_seer',
           'doppelganger',
+          'dire_wolf',
           'hoodlum',
           'old_hag',
           'hunter',
@@ -591,6 +708,8 @@ function candidates(room, person) {
           'mentalist',
           'priest',
           'huntress',
+          'revealer',
+          'the_mummy',
         ].includes(key)
       )
         return target.id !== person.id
@@ -603,31 +722,52 @@ function actionRules(room, person) {
     options = candidates(room, person)
   let max = ['mentalist', 'cupid', 'hoodlum'].includes(key)
     ? 2
-    : key === 'wolves' && room.doubleBiteNight === room.round
+    : key === 'wolves' && (room.doubleBiteNight === room.round || bigWolfBite(room))
       ? 2
-      : ['ghost', 'troublemaker', 'mason', 'minion'].includes(key) ||
+      : ['ghost', 'troublemaker', 'mason', 'minion', 'beholder', 'martyr'].includes(key) ||
           (key === 'witch' && person.used.poison)
         ? 0
         : 1
   max = Math.min(max, options.length)
   return {
     max,
+    min: key === 'wolves' && bigWolfBite(room) ? Math.min(1, max) : max,
+    adjacentPair: key === 'wolves' && bigWolfBite(room),
+    pairs:
+      key === 'wolves' && bigWolfBite(room)
+        ? options.flatMap((a, i) =>
+            options
+              .slice(i + 1)
+              .filter((b) => adjacent(room, a, b))
+              .map((b) => [a, b]),
+          )
+        : [],
     optional: [
       'witch',
       'priest',
       'huntress',
+      'revealer',
       'hunter',
       'pi',
       'troublemaker',
       'ghost',
       'spellcaster',
+      'leprechaun',
+      'bloody_mary',
+      'martyr',
     ].includes(key),
-    kind: key === 'ghost' ? 'letter' : key === 'troublemaker' ? 'activate' : 'targets',
+    kind:
+      key === 'ghost'
+        ? 'letter'
+        : ['troublemaker', 'martyr'].includes(key)
+          ? 'activate'
+          : 'targets',
   }
 }
 function selection(room, person, input) {
   check(
-    ['night', 'death-action'].includes(room.phase) && room.turn?.actors.includes(person.id),
+    ['night', 'death-action', 'martyr'].includes(room.phase) &&
+      room.turn?.actors.includes(person.id),
     'Chưa tới lượt bạn.',
   )
   const targets = input?.targets
@@ -644,9 +784,28 @@ function selection(room, person, input) {
     targets.every((t) => options.includes(t)),
     'Mục tiêu không còn hợp lệ.',
   )
-  const { max, optional } = actionRules(room, person)
-  check(targets.length <= max && (optional || targets.length === max), `Cần chọn ${max} người.`)
+  const { max, min, optional, adjacentPair } = actionRules(room, person)
+  check(
+    targets.length <= max && (optional || targets.length >= min),
+    min === max ? `Cần chọn ${max} người.` : `Chọn từ ${min} đến ${max} người.`,
+  )
+  check(
+    !adjacentPair || targets.length < 2 || adjacent(room, targets[0], targets[1]),
+    'Hai nạn nhân của Sói trùm phải ngồi cạnh nhau trong vòng người còn sống.',
+  )
   check(!targets.length || key !== 'witch' || !person.used.poison, 'Bạn đã dùng bình độc.')
+  const redirectFrom =
+    key === 'leprechaun' && targets.length
+      ? input.redirectFrom || (room.wolfTargets?.length === 1 ? room.wolfTargets[0] : null)
+      : null
+  check(
+    !targets.length ||
+      key !== 'leprechaun' ||
+      ((room.wolfTargets || []).includes(redirectFrom) &&
+        adjacent(room, redirectFrom, targets[0]) &&
+        !(room.wolfTargets || []).includes(targets[0])),
+    'Chọn một vết cắn và người kề nạn nhân hợp lệ, không trùng nạn nhân khác.',
+  )
   const save = key === 'witch' && input.save === true
   const bites = room.wolfTargets?.length
     ? room.wolfTargets
@@ -681,8 +840,9 @@ function selection(room, person, input) {
     targets: [...targets],
     save,
     saveTarget,
+    redirectFrom,
     text,
-    activate: key === 'troublemaker' && input.activate === true,
+    activate: ['troublemaker', 'martyr'].includes(key) && input.activate === true,
     confirmed: false,
   }
 }
@@ -733,7 +893,21 @@ function confirmation(room, person, decision) {
       .filter(wolf)
       .map((p) => p.name)
       .join(', ')}.`
+  if (key === 'beholder')
+    info = `Tiên tri thường: ${
+      alive(room)
+        .filter((p) => p.role === 'seer')
+        .map((p) => p.name)
+        .join(', ') || 'chưa xuất hiện (có thể ở lá ẩn chưa tỉnh)'
+    }.`
   if (info) person.notes.push(`Đêm ${room.round}: ${info}`)
+  if (key === 'wolves' && room.round === 1)
+    person.notes.push(
+      `Bầy Sói đêm đầu: ${alive(room)
+        .filter(wolf)
+        .map((p) => p.name)
+        .join(', ')}.`,
+    )
   for (const message of nightStories(room, person, decision, info)) log(room, message)
 }
 function sameTargets(a, b) {
@@ -768,6 +942,10 @@ function nightStories(room, person, decision, info) {
     case 'doppelganger':
       return [
         `${actor('Người nhân bản')} chọn thừa hưởng vai của ${target.name} khi người đó chết.`,
+      ]
+    case 'dire_wolf':
+      return [
+        `${actor('Sói đau khổ')} liên kết với ${target.name}. Nếu ${target.name} chết, ${person.name} chết theo; chiều ngược lại không có tác dụng.`,
       ]
     case 'hoodlum':
       return [
@@ -835,6 +1013,38 @@ function nightStories(room, person, decision, info) {
           ? `${actor('Nữ thợ săn')} bắn ${target.name}.`
           : `${actor('Nữ thợ săn')} chưa bắn ai, giữ lại phát bắn duy nhất.`,
       ]
+    case 'revealer':
+      return [
+        target
+          ? `${actor('Người khám phá')} dùng lượt duy nhất để khám phá ${target.name}; kết quả được xử lý lúc bình minh.`
+          : `${actor('Người khám phá')} bỏ qua, giữ lượt khám phá duy nhất.`,
+      ]
+    case 'beholder':
+      return [`${actor('Người chứng kiến')} nhận thông tin: ${info}`]
+    case 'leprechaun':
+      return [
+        target
+          ? `${actor('Yêu tinh')} chuyển vết cắn từ ${publicName(room, decision.redirectFrom)} sang ${target.name}.`
+          : `${actor('Yêu tinh')} giữ nguyên vết cắn.`,
+      ]
+    case 'the_mummy':
+      return [
+        target
+          ? `${actor('Xác ướp')} khiến phiếu của ${target.name} theo phiếu mình vào ngày mai.`
+          : `${actor('Xác ướp')} không có mục tiêu.`,
+      ]
+    case 'bloody_mary':
+      return [
+        target
+          ? `${actor('Bloody Mary')} chọn báo thù ${target.name}.`
+          : `${actor('Bloody Mary')} bỏ qua lượt báo thù.`,
+      ]
+    case 'martyr':
+      return [
+        decision.activate
+          ? `${actor('Kẻ tử đạo')} tình nguyện chết thay ${publicName(room, room.nominee)}.`
+          : `${actor('Kẻ tử đạo')} không hy sinh.`,
+      ]
     case 'spellcaster':
       return [
         target
@@ -873,11 +1083,28 @@ function nightStories(room, person, decision, info) {
 function finishTurn(room) {
   check(acted(room), 'Chờ tất cả người có lượt xác nhận.')
   const key = room.turn.key
+  if (room.phase === 'martyr') {
+    const volunteer = room.turn.actors.find((id) => room.decisions[id]?.activate)
+    const nominee = room.members.find((p) => p.id === room.nominee)
+    room.deaths = []
+    if (volunteer) {
+      const martyr = room.members.find((p) => p.id === volunteer)
+      kill(room, martyr, `hy sinh thay ${nominee.name}`)
+      room.lastSummary = `${martyr.name} hy sinh thay ${nominee.name}.`
+    } else {
+      kill(room, nominee, 'treo cổ')
+      room.lastSummary = `${nominee.name} bị treo cổ.`
+    }
+    room.turn = null
+    room.decisions = {}
+    afterBallot(room)
+    return
+  }
   if (key === 'hunter' && room.phase === 'death-action') {
     const actor = room.members.find((p) => p.id === room.turn.actors[0])
     actor.used.hunter = true
     const target = room.members.find((p) => p.id === room.decisions[actor.id].targets[0])
-    if (target) kill(room, target, `phát bắn cuối của Thợ săn ${actor.name}`)
+    if (target) kill(room, target, `phát bắn cuối của Thợ săn ${actor.name}`, team(actor))
     room.lastSummary = `Những người đã bị loại trong lượt này: ${room.deaths.map((id) => publicName(room, id)).join(', ')}.`
     if (!advanceHunter(room)) settle(room, room.afterDeath || 'day-end')
     return
@@ -889,6 +1116,21 @@ function finishTurn(room) {
       room.wolfTarget = d.targets[0]
       room.wolfTargets = [...d.targets]
     }
+    if (key === 'leprechaun' && d.targets.length) {
+      room.wolfTargets = room.wolfTargets.map((id) => (id === d.redirectFrom ? d.targets[0] : id))
+      room.wolfTarget = room.wolfTargets[0] || null
+    }
+    if (key === 'the_mummy' && d.targets.length) room.mummyLinks[d.targets[0]] = p.id
+    if (key === 'bloody_mary' && d.targets.length)
+      room.revengeAttacks.push({
+        target: d.targets[0],
+        actor: p.id,
+        matches:
+          p.revengeTeam === 'werewolf'
+            ? wolf(room.members.find((p) => p.id === d.targets[0])) ||
+              team(room.members.find((p) => p.id === d.targets[0])) === 'werewolf'
+            : team(room.members.find((p) => p.id === d.targets[0])) === p.revengeTeam,
+      })
     if (key === 'vampires') room.vampireTarget = d.targets[0]
     if (key === 'bodyguard') {
       room.protected = d.targets[0]
@@ -921,6 +1163,16 @@ function finishTurn(room) {
       room.shots.push(d.targets[0])
       p.used.huntress = true
     }
+    if (key === 'revealer' && d.targets.length) {
+      check(!p.used.revealer, 'Bạn đã dùng lượt khám phá duy nhất.')
+      p.used.revealer = true
+      room.revelations ||= []
+      room.revelations.push({
+        actor: p.id,
+        target: d.targets[0],
+        wolf: wolf(room.members.find((target) => target.id === d.targets[0])),
+      })
+    }
     if (key === 'spellcaster' && d.targets.length) {
       room.members.find((p) => p.id === d.targets[0]).silenced = true
       p.used[`silenced:${d.targets[0]}`] = true
@@ -941,6 +1193,12 @@ function finishTurn(room) {
     if (key === 'doppelganger') {
       p.copyTarget = d.targets[0]
       p.notes.push(`Bạn sẽ thừa hưởng chức năng của ${publicName(room, p.copyTarget)} khi họ chết.`)
+    }
+    if (key === 'dire_wolf') {
+      p.direTarget = d.targets[0]
+      p.notes.push(
+        `Bạn liên kết với ${publicName(room, p.direTarget)}. Người ấy chết thì bạn chết theo; bạn chết không khiến người ấy chết.`,
+      )
     }
     if (key === 'hoodlum') {
       p.hoodlumTargets = [...d.targets]
@@ -971,7 +1229,8 @@ function finishTurn(room) {
 }
 function resolveNight(room) {
   for (const p of alive(room))
-    if (p.woundDue && p.woundDue <= room.round) kill(room, p, 'vết thương Sói cắn từ đêm trước')
+    if (p.woundDue && p.woundDue <= room.round)
+      kill(room, p, 'vết thương Sói cắn từ đêm trước', 'werewolf')
   const bites = room.wolfTargets?.length
     ? room.wolfTargets
     : room.wolfTarget
@@ -983,6 +1242,24 @@ function resolveNight(room) {
     nightAttack(room, id, 'bình độc')
   for (const id of room.shots?.length ? room.shots : room.shot ? [room.shot] : [])
     nightAttack(room, id, 'Nữ thợ săn')
+  for (const reveal of room.revelations || []) {
+    const actor = room.members.find((p) => p.id === reveal.actor)
+    const target = room.members.find((p) => p.id === reveal.target)
+    log(
+      room,
+      `Người khám phá (${actor.name}) chọn ${target.name}: ${reveal.wolf ? 'là Sói thật' : 'không phải Sói thật, Người khám phá chịu hình phạt'}.`,
+    )
+    if (reveal.wolf) nightAttack(room, target.id, 'Người khám phá')
+    else kill(room, actor, 'khám phá nhầm người không phải Sói')
+  }
+  for (const attack of room.revengeAttacks || []) {
+    if (attack.matches) nightAttack(room, attack.target, 'Bloody Mary')
+    else
+      log(
+        room,
+        `Bloody Mary (${publicName(room, attack.actor)}) không gây hại ${publicName(room, attack.target)} vì không thuộc phe cần báo thù.`,
+      )
+  }
   if (room.vampireTarget) nightAttack(room, room.vampireTarget, 'Ma cà rồng')
   if (room.round === 1)
     for (const p of alive(room).filter((p) => p.role === 'ghost')) kill(room, p, 'định mệnh Hồn ma')
@@ -1034,7 +1311,7 @@ function nightAttack(room, id, reason) {
     log(room, `${target.name} mang vết cắn Ma cà rồng và sẽ chết sau phiên biểu quyết kế tiếp.`)
     return
   }
-  kill(room, target, reason)
+  kill(room, target, reason, reason === 'Sói cắn' ? 'werewolf' : 'village')
 }
 function openNomination(room, eligible = null) {
   room.votes = {}
@@ -1043,6 +1320,19 @@ function openNomination(room, eligible = null) {
   phase(room, 'nominate')
 }
 const weighted = (p) => (p.role === 'mayor' ? 2 : 1)
+function effectiveVote(room, person) {
+  const eligible = new Set(voters(room).map((p) => p.id))
+  const seen = new Set()
+  let id = person.id
+  while (room.mummyLinks?.[id] && eligible.has(room.mummyLinks[id])) {
+    if (seen.has(id)) return room.votes[person.id]
+    seen.add(id)
+    id = room.mummyLinks[id]
+  }
+  return room.votes[id]
+}
+const teenActors = (room) =>
+  alive(room).filter((p) => p.role === 'teenage_werewolf' && !p.silenced && !p.banished)
 function finishBallot(room) {
   check(
     voters(room).every((p) => Object.hasOwn(room.votes, p.id)),
@@ -1051,7 +1341,7 @@ function finishBallot(room) {
   if (room.phase === 'nominate') {
     const tally = new Map()
     for (const p of voters(room)) {
-      const target = room.votes[p.id]
+      const target = effectiveVote(room, p)
       if (target) tally.set(target, (tally.get(target) || 0) + weighted(p))
     }
     const max = Math.max(0, ...tally.values()),
@@ -1061,7 +1351,7 @@ function finishBallot(room) {
       `Đề cử: ${voters(room)
         .map(
           (p) =>
-            `${p.name} → ${room.members.find((t) => t.id === room.votes[p.id])?.name || 'trắng'}`,
+            `${p.name} → ${room.members.find((t) => t.id === effectiveVote(room, p))?.name || 'trắng'}${room.mummyLinks?.[p.id] ? ' (sau hiệu lực Xác ướp)' : ''}`,
         )
         .join('; ')}.`,
     )
@@ -1078,7 +1368,7 @@ function finishBallot(room) {
     }
   } else {
     const yes = voters(room).reduce(
-      (sum, p) => sum + (room.votes[p.id] === true ? weighted(p) : 0),
+      (sum, p) => sum + (effectiveVote(room, p) === true ? weighted(p) : 0),
       0,
     )
     const total = voters(room).reduce((sum, p) => sum + weighted(p), 0)
@@ -1086,7 +1376,10 @@ function finishBallot(room) {
     log(
       room,
       `Treo cổ ${target.name}: ${yes}/${total} phiếu Có. ${voters(room)
-        .map((p) => `${p.name}: ${room.votes[p.id] ? 'Có' : 'Không'}`)
+        .map(
+          (p) =>
+            `${p.name}: ${effectiveVote(room, p) ? 'Có' : 'Không'}${room.mummyLinks?.[p.id] ? ' (sau hiệu lực Xác ướp)' : ''}`,
+        )
         .join('; ')}.`,
     )
     room.deaths = []
@@ -1099,6 +1392,14 @@ function finishBallot(room) {
         target.publicRole = target.role
         log(room, room.lastSummary)
       } else {
+        const martyrs = livingRing(room).filter((p) => p.role === 'martyr' && p.id !== target.id)
+        if (martyrs.length) {
+          room.turn = { key: 'martyr', actors: martyrs.map((p) => p.id) }
+          room.decisions = {}
+          phase(room, 'martyr')
+          log(room, `Trước khi treo cổ ${target.name}, Kẻ tử đạo được chọn hy sinh hoặc bỏ qua.`)
+          return
+        }
         kill(room, target, 'treo cổ')
         room.lastSummary = `${target.name} bị treo cổ.`
       }
@@ -1232,7 +1533,8 @@ export function command(room, actor, action, input = {}, now = Date.now()) {
     check(
       !actor.host &&
         (actor.alive ||
-          (['ghost', 'hunter'].includes(room.turn?.key) && room.turn.actors.includes(actor.id))) &&
+          (['ghost', 'hunter', 'bloody_mary'].includes(room.turn?.key) &&
+            room.turn.actors.includes(actor.id))) &&
         !room.decisions[actor.id]?.confirmed,
       'Bạn đã xác nhận hoặc không có lượt.',
     )
@@ -1273,6 +1575,16 @@ export function command(room, actor, action, input = {}, now = Date.now()) {
     return
   }
   check(actor.host, 'Chỉ quản trò được thực hiện thao tác này.')
+  if (action === 'teen-check') {
+    check(
+      room.phase === 'teen-review' &&
+        typeof input.spoken === 'boolean' &&
+        teenActors(room).some((p) => p.id === input.playerId),
+      'Chỉ xác nhận từ khóa cho Sói tuổi teen đang được kiểm tra.',
+    )
+    room.teenChecks[input.playerId] = input.spoken
+    return
+  }
   if (action === 'seats') {
     check(room.phase === 'lobby', 'Chỉ đổi chỗ ngồi trước ván.')
     const ids = players(room).map((p) => p.id)
@@ -1325,10 +1637,12 @@ export function command(room, actor, action, input = {}, now = Date.now()) {
         woundDue: null,
         vampireDue: null,
         copyTarget: null,
+        direTarget: null,
         hoodlumTargets: [],
         followers: [],
         deathRound: null,
         blessedBy: null,
+        revengeTeam: null,
       }),
     )
     room.logs = []
@@ -1343,6 +1657,10 @@ export function command(room, actor, action, input = {}, now = Date.now()) {
     room.ghostClues = []
     room.doubleBiteNight = 0
     room.sickNight = 0
+    room.wolfDied = false
+    room.mummyLinks = {}
+    room.teenChecks = {}
+    room.teenReviewRound = null
     room.executionsLeft = 1
     room.seatOrder = [
       ...(room.seatOrder || []).filter((id) => players(room).some((p) => p.id === id)),
@@ -1358,10 +1676,34 @@ export function command(room, actor, action, input = {}, now = Date.now()) {
   if (action === 'next') {
     check(!room.cardsOnly, 'Phòng này chỉ chia bài; quản trò điều hành trực tiếp.')
     if (['dealt', 'day-end'].includes(room.phase)) {
+      if (
+        room.phase === 'day-end' &&
+        room.teenReviewRound !== room.round &&
+        teenActors(room).length
+      ) {
+        room.teenChecks = {}
+        phase(room, 'teen-review')
+        return
+      }
       room.wolfTarget = room.healed = room.poisoned = room.shot = room.protected = null
       beginNight(room)
-    } else if (room.phase === 'death-action') finishTurn(room)
-    else if (room.phase === 'day-extra') {
+    } else if (['death-action', 'martyr'].includes(room.phase)) finishTurn(room)
+    else if (room.phase === 'teen-review') {
+      check(
+        teenActors(room).every((p) => Object.hasOwn(room.teenChecks, p.id)),
+        'Quản trò cần xác nhận từng người đã nói từ khóa hay chưa.',
+      )
+      room.teenReviewRound = room.round
+      room.deaths = []
+      for (const p of teenActors(room)) {
+        if (!room.teenChecks[p.id]) kill(room, p, 'không nói từ khóa Sói trong ngày', 'village')
+        else log(room, `Sói tuổi teen (${p.name}) đã nói từ khóa Sói trong ngày.`)
+      }
+      room.lastSummary = room.deaths.length
+        ? `${room.deaths.map((id) => publicName(room, id)).join(', ')} bị loại vì không nói từ khóa Sói.`
+        : 'Quản trò đã kiểm tra điều kiện cuối ngày. Có thể bắt đầu đêm tiếp theo.'
+      settle(room, 'day-end')
+    } else if (room.phase === 'day-extra') {
       room.ballot = 0
       openNomination(room)
     } else if (room.phase === 'night') {
@@ -1413,7 +1755,8 @@ export function view(room, viewer, now = Date.now()) {
     (viewer.host && !['lobby', 'countdown', 'reveal'].includes(room.phase)) ||
     room.phase === 'ended'
   const isActor =
-    ['night', 'death-action'].includes(room.phase) && room.turn?.actors.includes(viewer.id)
+    ['night', 'death-action', 'martyr'].includes(room.phase) &&
+    room.turn?.actors.includes(viewer.id)
   const isPack = isActor && ['wolves', 'vampires'].includes(room.turn.key)
   const decision = room.decisions[viewer.id]
   const roster = room.members.map((p) => ({
@@ -1427,10 +1770,28 @@ export function view(room, viewer, now = Date.now()) {
     seen: p.seen,
     silenced:
       p.silenced &&
-      ['day', 'nominate', 'defense', 'verdict', 'day-end', 'day-extra'].includes(room.phase),
+      [
+        'day',
+        'nominate',
+        'defense',
+        'verdict',
+        'day-end',
+        'day-extra',
+        'teen-review',
+        'martyr',
+      ].includes(room.phase),
     banished:
       p.banished &&
-      ['day', 'nominate', 'defense', 'verdict', 'day-end', 'day-extra'].includes(room.phase),
+      [
+        'day',
+        'nominate',
+        'defense',
+        'verdict',
+        'day-end',
+        'day-extra',
+        'teen-review',
+        'martyr',
+      ].includes(room.phase),
     wins: p.wins,
     losses: p.losses,
     role: canSeeRoles
@@ -1446,6 +1807,13 @@ export function view(room, viewer, now = Date.now()) {
     revision: room.revision,
     phase: room.phase,
     cardsOnly: !!room.cardsOnly,
+    teenChecks:
+      viewer.host && room.phase === 'teen-review'
+        ? teenActors(room).map((p) => ({
+            id: p.id,
+            spoken: Object.hasOwn(room.teenChecks, p.id) ? room.teenChecks[p.id] : null,
+          }))
+        : [],
     canResetNight: !!(
       viewer.host &&
       !room.cardsOnly &&
@@ -1467,7 +1835,7 @@ export function view(room, viewer, now = Date.now()) {
     members: roster,
     paused: paused(room),
     waitingFor: viewer.host
-      ? ['night', 'death-action'].includes(room.phase) && room.turn
+      ? ['night', 'death-action', 'martyr'].includes(room.phase) && room.turn
         ? room.turn.actors.filter((id) => !room.decisions[id]?.confirmed)
         : ['nominate', 'verdict'].includes(room.phase)
           ? voters(room)
@@ -1514,13 +1882,14 @@ export function view(room, viewer, now = Date.now()) {
           targets: decision?.targets || [],
           save: decision?.save || false,
           saveTarget: decision?.saveTarget || null,
+          redirectFrom: decision?.redirectFrom || null,
           text: decision?.text || '',
           activate: decision?.activate || false,
           ...actionRules(room, viewer),
           used: viewer.used,
           wolfTarget: room.turn.key === 'witch' && !viewer.used.heal ? room.wolfTarget : null,
           wolfTargets:
-            room.turn.key === 'witch' && !viewer.used.heal
+            (room.turn.key === 'witch' && !viewer.used.heal) || room.turn.key === 'leprechaun'
               ? room.wolfTargets?.length
                 ? room.wolfTargets
                 : room.wolfTarget
@@ -1530,10 +1899,10 @@ export function view(room, viewer, now = Date.now()) {
         }
       : null,
     choices:
-      (viewer.host || isPack) && ['night', 'death-action'].includes(room.phase)
+      (viewer.host || isPack) && ['night', 'death-action', 'martyr'].includes(room.phase)
         ? Object.entries(room.decisions).map(([id, d]) => ({ id, ...d }))
         : [],
-    nominee: ['defense', 'verdict', 'day-end'].includes(room.phase) ? room.nominee : null,
+    nominee: ['defense', 'verdict', 'day-end', 'martyr'].includes(room.phase) ? room.nominee : null,
     eligible: room.phase === 'nominate' ? room.eligible : [],
     voted: Object.hasOwn(room.votes, viewer.id),
     vote: room.votes[viewer.id] ?? null,

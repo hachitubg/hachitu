@@ -39,6 +39,7 @@ const revealButton = ref<HTMLElement>()
 const targets = ref<string[]>([])
 const savePotion = ref(false)
 const saveTarget = ref<string | null>(null)
+const redirectFrom = ref<string | null>(null)
 const ghostLetter = ref('')
 const activateSkill = ref(false)
 const seatDraft = ref<string[]>([])
@@ -126,6 +127,11 @@ watch(
       state.value?.action?.saveTarget ||
       (state.value?.action?.wolfTargets?.length === 1 ? state.value.action.wolfTargets[0]! : null)
     ghostLetter.value = state.value?.action?.text || ''
+    redirectFrom.value =
+      state.value?.action?.redirectFrom ||
+      (state.value?.action?.key === 'leprechaun' && state.value.action.wolfTargets?.length === 1
+        ? state.value.action.wolfTargets[0]!
+        : null)
     activateSkill.value = state.value?.action?.activate || false
     voteChosen.value = false
     vote.value = null
@@ -156,6 +162,10 @@ const nextLabel = computed(() => {
       return state.value.current ? 'Hoàn thành lượt · Gọi vai tiếp theo' : 'Cả làng thức dậy'
     case 'death-action':
       return 'Hoàn thành phát bắn'
+    case 'martyr':
+      return 'Chốt quyết định hy sinh'
+    case 'teen-review':
+      return 'Chốt kiểm tra cuối ngày'
     case 'day-extra':
       return 'Mở phiên biểu quyết thứ hai'
     case 'day':
@@ -175,9 +185,11 @@ const nextLabel = computed(() => {
 const canNext = computed(() => {
   if (locked.value || !nextLabel.value) return false
   const s = state.value!
-  if (['night', 'death-action'].includes(s.phase) && s.current)
+  if (['night', 'death-action', 'martyr'].includes(s.phase) && s.current)
     return s.current.confirmed === s.current.total
   if (['nominate', 'verdict'].includes(s.phase)) return s.voteCount === s.voterCount
+  if (s.phase === 'teen-review')
+    return !!s.teenChecks?.length && s.teenChecks.every((p) => p.spoken !== null)
   return true
 })
 const actionMax = computed(() => {
@@ -186,12 +198,37 @@ const actionMax = computed(() => {
   return a.max
 })
 const optionalAction = computed(() => !!state.value?.action?.optional)
+const actionMin = computed(() => state.value?.action?.min ?? actionMax.value)
+const validTargets = computed(() => {
+  const action = state.value?.action
+  if (action?.key === 'leprechaun' && targets.value.length) {
+    const ring = (state.value?.seatOrder || []).filter((id) =>
+      people.value.some((p) => p.id === id && p.alive),
+    )
+    const a = ring.indexOf(redirectFrom.value || ''),
+      b = ring.indexOf(targets.value[0] || '')
+    return (
+      a >= 0 &&
+      b >= 0 &&
+      a !== b &&
+      (Math.abs(a - b) === 1 || Math.abs(a - b) === ring.length - 1) &&
+      !action.wolfTargets.includes(targets.value[0]!)
+    )
+  }
+  return (
+    !action?.adjacentPair ||
+    targets.value.length < 2 ||
+    !!action.pairs?.some((pair) => targets.value.every((id) => pair.includes(id)))
+  )
+})
 const canConfirm = computed(
   () =>
     !locked.value &&
     !!state.value?.action &&
     !state.value.action.confirmed &&
-    (optionalAction.value || targets.value.length === actionMax.value) &&
+    (optionalAction.value ||
+      (targets.value.length >= actionMin.value && targets.value.length <= actionMax.value)) &&
+    validTargets.value &&
     (!savePotion.value || !!saveTarget.value),
 )
 const deathWaiting = computed(
@@ -278,11 +315,12 @@ async function selectTarget(id: string) {
   else
     targets.value =
       actionMax.value === 1 ? [id] : [...targets.value.slice(-(actionMax.value - 1)), id]
-  if (targets.value.length === actionMax.value || optionalAction.value) {
+  if (validTargets.value && (targets.value.length >= actionMin.value || optionalAction.value)) {
     const ok = await send('draft', {
       targets: targets.value,
       save: savePotion.value,
       saveTarget: saveTarget.value,
+      redirectFrom: redirectFrom.value,
     })
     if (!ok) targets.value = [...(state.value?.action?.targets || [])]
   }
@@ -296,6 +334,7 @@ async function confirmNight() {
     targets: targets.value,
     save: savePotion.value,
     saveTarget: saveTarget.value,
+    redirectFrom: redirectFrom.value,
     text: ghostLetter.value,
     activate: activateSkill.value,
   })
@@ -428,10 +467,12 @@ function handleDialogClick(event: MouseEvent) {
         /></template>
         <AvatarPicker v-model="avatar" :busy="imageBusy || busy" @upload="avatarPicker?.click()" />
         <label v-if="mode === 'create'" class="cards-only-config">
-          <input v-model="cardsOnly" type="checkbox" />
+          <input v-model="cardsOnly" type="checkbox" aria-label="Chỉ dùng bộ bài" />
           <span
             ><strong>Chỉ dùng bộ bài</strong
-            ><small>App chia bài bí mật; quản trò tự điều hành toàn bộ ván chơi.</small></span
+            ><small
+              >Chọn đủ 67 vai. App chỉ chia bài bí mật, quản trò tự điều hành ván chơi.</small
+            ></span
           >
         </label>
         <input ref="avatarPicker" type="file" accept="image/*" hidden @change="avatarFile" /><button
@@ -491,7 +532,7 @@ function handleDialogClick(event: MouseEvent) {
           >
             Chốt bộ bài · Bắt đầu<Icon icon="lucide:play" /></button
           ><button :disabled="locked" @click="modal = 'seats'">
-            <Icon icon="lucide:circle-dot" />Sắp xếp vòng chỗ ngồi (P.I.)</button
+            <Icon icon="lucide:circle-dot" />Sắp xếp vòng chỗ ngồi (P.I. / Sói trùm)</button
           ><small v-if="people.length < 5">Cần ít nhất 5 người chơi.</small>
         </div>
         <button v-else class="ww-primary" :disabled="locked" @click="run('ready')">
@@ -725,16 +766,48 @@ function handleDialogClick(event: MouseEvent) {
                 </div>
               </div>
             </template>
-            <template v-if="['night', 'death-action'].includes(state.phase)"
+            <template v-if="state.phase === 'teen-review'">
+              <h2>Kiểm tra điều kiện cuối ngày</h2>
+              <p>
+                {{
+                  state.host
+                    ? 'Xác nhận Sói tuổi teen đã nói “Sói” hoặc “Ma sói” trong ngày này chưa. Người bị câm hoặc Bà già đuổi được miễn.'
+                    : 'Chờ quản trò hoàn tất kiểm tra để bắt đầu đêm tiếp theo.'
+                }}
+              </p>
+              <div v-if="state.host" class="teen-review-list">
+                <article v-for="check in state.teenChecks" :key="check.id">
+                  <strong>{{ personName(check.id) }}</strong>
+                  <div class="end-actions">
+                    <button
+                      :aria-pressed="check.spoken === true"
+                      :disabled="locked"
+                      @click="run('teen-check', { playerId: check.id, spoken: true })"
+                    >
+                      Đã nói từ khóa</button
+                    ><button
+                      :aria-pressed="check.spoken === false"
+                      :disabled="locked"
+                      @click="run('teen-check', { playerId: check.id, spoken: false })"
+                    >
+                      Chưa nói · Sẽ bị loại
+                    </button>
+                  </div>
+                </article>
+              </div>
+            </template>
+            <template v-if="['night', 'death-action', 'martyr'].includes(state.phase)"
               ><span class="eyebrow">{{
                 state.host ? 'LỜI GỌI CỦA QUẢN TRÒ' : 'LƯỢT HIỆN TẠI'
               }}</span>
               <h2>
                 {{
                   state.current
-                    ? state.phase === 'death-action'
-                      ? `${roleName(state.current.key)}, hãy thực hiện phát bắn cuối`
-                      : `${roleName(state.current.key)}, hãy thức dậy`
+                    ? state.phase === 'martyr'
+                      ? `Kẻ tử đạo có cứu ${personName(state.nominee)} không?`
+                      : state.phase === 'death-action'
+                        ? `${roleName(state.current.key)}, hãy thực hiện phát bắn cuối`
+                        : `${roleName(state.current.key)}, hãy thức dậy`
                     : 'Các vai đã hoàn thành'
                 }}
               </h2>
@@ -753,7 +826,7 @@ function handleDialogClick(event: MouseEvent) {
               <p v-if="state.host && state.current" class="turn-instructions">
                 {{
                   state.current.key === 'wolves'
-                    ? 'Mời các Sói thống nhất mục tiêu. Sau khi Sói con chết, đêm sau chọn hai người khác nhau.'
+                    ? 'Mời các Sói đang săn thống nhất mục tiêu. Sói trùm cho tối đa hai người kề nhau; thưởng Sói con cho hai người bất kỳ. Con bệnh khiến cả đàn nghỉ săn.'
                     : state.current.key === 'vampires'
                       ? roleById('vampire')?.guide_vi || roleById('vampire')?.ability_vi
                       : roleById(state.current.key)?.guide_vi ||
@@ -778,6 +851,7 @@ function handleDialogClick(event: MouseEvent) {
                       'sorceress',
                       'mason',
                       'minion',
+                      'beholder',
                     ].includes(state.action.key)
                   "
                   class="private-notes"
@@ -785,7 +859,7 @@ function handleDialogClick(event: MouseEvent) {
                   {{ state.notes[state.notes.length - 1] }}
                 </p>
                 <template v-if="!state.action.confirmed"
-                  ><p v-if="['mason', 'minion'].includes(state.action.key)">
+                  ><p v-if="['mason', 'minion', 'beholder'].includes(state.action.key)">
                     Bấm Xác nhận để nhận thông tin bí mật của vai.
                   </p>
                   <p v-else-if="state.action.kind === 'targets'">
@@ -796,7 +870,9 @@ function handleDialogClick(event: MouseEvent) {
                           : state.action.key === 'spellcaster'
                             ? 'Chọn một người để làm câm hoặc bỏ qua đêm nay.'
                             : 'Bạn có thể bỏ qua để giữ kỹ năng.'
-                        : `Chọn ${actionMax} người rồi xác nhận.`
+                        : actionMin !== actionMax
+                          ? `Chọn ${actionMin} hoặc ${actionMax} người rồi xác nhận. Hai mục tiêu phải ngồi cạnh nhau.`
+                          : `Chọn ${actionMax} người rồi xác nhận.`
                     }}
                   </p>
                   <label v-if="state.action.kind === 'letter'" class="special-action"
@@ -807,8 +883,11 @@ function handleDialogClick(event: MouseEvent) {
                       placeholder="Để trống để bỏ qua"
                   /></label>
                   <label v-if="state.action.kind === 'activate'" class="potion"
-                    ><input v-model="activateSkill" type="checkbox" />Kích hoạt Kẻ phá rối: ngày mai
-                    có hai phiên biểu quyết.</label
+                    ><input v-model="activateSkill" type="checkbox" />{{
+                      state.action.key === 'martyr'
+                        ? `Tôi tự nguyện chết thay ${personName(state.nominee)}.`
+                        : 'Kích hoạt Kẻ phá rối: ngày mai có hai phiên biểu quyết.'
+                    }}</label
                   >
                   <label
                     v-if="
@@ -837,12 +916,33 @@ function handleDialogClick(event: MouseEvent) {
                       </option>
                     </select></label
                   >
+                  <label
+                    v-if="state.action.key === 'leprechaun' && state.action.wolfTargets.length"
+                    class="special-action"
+                    >Vết cắn muốn chuyển<select
+                      v-model="redirectFrom"
+                      aria-label="Nạn nhân Sói muốn chuyển"
+                    >
+                      <option :value="null" disabled>Chọn một nạn nhân</option>
+                      <option v-for="id in state.action.wolfTargets" :key="id" :value="id">
+                        {{ personName(id) }}
+                      </option>
+                    </select></label
+                  >
+                  <p v-if="state.action.key === 'leprechaun'" class="fineprint">
+                    Chuyển tối đa một vết cắn sang người kề nạn nhân trong vòng sống, hoặc bỏ qua để
+                    giữ nguyên. Nếu có hai vết cắn, người nhận không được trùng nạn nhân còn lại.
+                  </p>
                   <p v-if="state.action.key === 'witch'">
                     {{
                       state.action.used.poison
                         ? 'Bình độc đã dùng.'
                         : 'Chọn người bên dưới nếu muốn dùng bình độc.'
                     }}
+                  </p>
+                  <p v-if="state.action.key === 'revealer'" class="fineprint">
+                    Cả ván chỉ có một lượt khám phá. Chưa muốn dùng thì xác nhận Bỏ qua để giữ lượt
+                    cho đêm sau.
                   </p>
                   <div v-if="actionMax" class="target-grid">
                     <button
@@ -853,9 +953,17 @@ function handleDialogClick(event: MouseEvent) {
                       @click="selectTarget(p.id)"
                     >
                       <PlayerAvatar class="avatar" :value="p.avatar" :name="p.name" />{{ p.name
-                      }}<Icon v-if="targets.includes(p.id)" icon="lucide:check" />
+                      }}<small v-if="state.action.adjacentPair">Chỗ {{ p.seat }}</small
+                      ><Icon v-if="targets.includes(p.id)" icon="lucide:check" />
                     </button>
                   </div>
+                  <p v-if="!validTargets" class="ww-alert">
+                    {{
+                      state.action.key === 'leprechaun'
+                        ? 'Chọn người kề nạn nhân đã chọn và không trùng vết cắn còn lại.'
+                        : 'Hai mục tiêu phải ngồi cạnh nhau trong vòng người còn sống. Hãy đổi một mục tiêu hoặc chỉ chọn một người.'
+                    }}
+                  </p>
                   <button class="ww-primary" :disabled="!canConfirm" @click="confirmNight">
                     <Icon icon="lucide:check" />Xác nhận{{
                       optionalAction &&
@@ -874,11 +982,13 @@ function handleDialogClick(event: MouseEvent) {
                 <div v-for="choice in state.choices" :key="choice.id">
                   <strong>{{ personName(choice.id) }}</strong
                   ><span
-                    >→
-                    {{
+                    >→ {{ choice.redirectFrom ? `Chuyển ${personName(choice.redirectFrom)} → ` : ''
+                    }}{{
                       choice.text ||
                       (choice.activate
-                        ? 'Kích hoạt kỹ năng'
+                        ? state.phase === 'martyr'
+                          ? 'Tự nguyện chết thay'
+                          : 'Kích hoạt kỹ năng'
                         : choice.targets.map(personName).join(', ') || 'Bỏ qua')
                     }}{{ choice.save ? ` · Cứu ${personName(choice.saveTarget)}` : '' }}</span
                   ><Icon :icon="choice.confirmed ? 'lucide:check-check' : 'lucide:pencil'" />
@@ -1100,7 +1210,7 @@ function handleDialogClick(event: MouseEvent) {
             <Icon icon="lucide:copy" />{{ copied ? 'Đã sao chép' : 'Chép lời mời' }}
           </button>
         </section>
-        <CardLibrary v-if="modal === 'catalog'" :roles="catalog" />
+        <CardLibrary v-if="modal === 'catalog'" :roles="catalog" :cards-only="state?.cardsOnly" />
         <DeckEditor
           v-if="modal === 'deck' && state"
           :deck="state.deck"
@@ -1123,7 +1233,7 @@ function handleDialogClick(event: MouseEvent) {
         <section v-if="modal === 'seats' && state?.host">
           <p class="fineprint">
             Sắp theo đúng vòng ngồi thực tế, không tính quản trò. Người đầu và người cuối ngồi cạnh
-            nhau; P.I. dùng thứ tự này và bỏ qua người đã chết.
+            nhau; P.I. và Sói trùm dùng thứ tự này và bỏ qua người đã chết.
           </p>
           <div class="identity-list seat-editor">
             <div v-for="(id, index) in seatDraft" :key="id">

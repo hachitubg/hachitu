@@ -1,7 +1,7 @@
 import { mount } from '@vue/test-utils'
 import { ref, shallowRef } from 'vue'
 import { afterAll, afterEach, beforeAll, expect, it, vi } from 'vitest'
-import type { RoomState } from '../types'
+import type { RoomState, Member } from '../types'
 const mocks = vi.hoisted(() => ({ useRoom: vi.fn() }))
 vi.mock('../composables/useRoom', () => ({ useRoom: mocks.useRoom }))
 import WerewolfPage from '../index.vue'
@@ -39,7 +39,11 @@ afterEach(() => {
   wrappers.splice(0).forEach((wrapper) => wrapper.unmount())
   vi.clearAllMocks()
 })
-function page(key: string, extra: Partial<RoomState> = {}) {
+function page(
+  key: string,
+  extra: Partial<RoomState> = {},
+  actionOverrides: Partial<NonNullable<RoomState['action']>> = {},
+) {
   const send = vi.fn().mockResolvedValue(true)
   const state = {
     code: 'ABC123',
@@ -103,6 +107,7 @@ function page(key: string, extra: Partial<RoomState> = {}) {
       activate: false,
       wolfTarget: null,
       wolfTargets: [],
+      ...actionOverrides,
     },
     canVote: false,
     voterCount: 1,
@@ -152,6 +157,20 @@ it('lets a dead Hunter select and confirm a target rather than showing the dead 
   await wrapper.find('.night-action > .ww-primary').trigger('click')
   expect(send).toHaveBeenCalledWith('confirm', expect.objectContaining({ targets: ['target'] }))
 })
+
+it('Big Bad Wolf can confirm one victim without being forced to select two', async () => {
+  const { wrapper, send } = page(
+    'wolves',
+    { alive: true, myRole: 'big_bad_wolf' },
+    { min: 1, max: 2, optional: false, adjacentPair: true, pairs: [] },
+  )
+  await wrapper.get('.target-grid button').trigger('click')
+  expect(send).toHaveBeenCalledWith('draft', expect.objectContaining({ targets: ['target'] }))
+  const confirm = wrapper.get('.night-action > .ww-primary')
+  expect(confirm.attributes('disabled')).toBeUndefined()
+  await confirm.trigger('click')
+  expect(send).toHaveBeenCalledWith('confirm', expect.objectContaining({ targets: ['target'] }))
+})
 it('lets a dead Ghost submit a letter without showing player target buttons', async () => {
   const { wrapper, send } = page('ghost')
   expect(wrapper.find('.ww-rest').exists()).toBe(false)
@@ -159,6 +178,86 @@ it('lets a dead Ghost submit a letter without showing player target buttons', as
   await wrapper.find('[aria-label="Chữ cái của Hồn ma"]').setValue('Z')
   await wrapper.find('.night-action > .ww-primary').trigger('click')
   expect(send).toHaveBeenCalledWith('confirm', expect.objectContaining({ targets: [], text: 'Z' }))
+})
+
+it('lets Revealer skip the night or confirm one target with a one-use explanation', async () => {
+  const { wrapper, send } = page('revealer', { alive: true })
+  expect(wrapper.text()).toContain('Cả ván chỉ có một lượt khám phá')
+  await wrapper.get('.night-action > .ww-primary').trigger('click')
+  expect(send).toHaveBeenCalledWith('confirm', expect.objectContaining({ targets: [] }))
+  await wrapper.get('.target-grid button').trigger('click')
+  await wrapper.get('.night-action > .ww-primary').trigger('click')
+  expect(send).toHaveBeenCalledWith('confirm', expect.objectContaining({ targets: ['target'] }))
+})
+
+it('Martyr can explicitly volunteer or decline before the host executes anyone', async () => {
+  const { wrapper, send } = page(
+    'martyr',
+    { phase: 'martyr', alive: true, nominee: 'target' },
+    { kind: 'activate', max: 0, options: [] },
+  )
+  expect(wrapper.text()).toContain('Kẻ tử đạo có cứu An không?')
+  expect(wrapper.find('.target-grid').exists()).toBe(false)
+  await wrapper.get('.night-action .potion input').setValue(true)
+  await wrapper.get('.night-action > .ww-primary').trigger('click')
+  expect(send).toHaveBeenCalledWith(
+    'confirm',
+    expect.objectContaining({ targets: [], activate: true }),
+  )
+})
+
+it('Bloody Mary receives target controls while dead, without the dead waiting overlay', async () => {
+  const { wrapper, send } = page('bloody_mary')
+  expect(wrapper.find('.ww-rest').exists()).toBe(false)
+  await wrapper.get('.target-grid button').trigger('click')
+  await wrapper.get('.night-action > .ww-primary').trigger('click')
+  expect(send).toHaveBeenCalledWith('confirm', expect.objectContaining({ targets: ['target'] }))
+})
+
+it('Teen wolf review controls are host-only and require every check before continuing', async () => {
+  const { wrapper, send } = page('villager', {
+    phase: 'teen-review',
+    host: true,
+    alive: true,
+    action: null,
+    current: null,
+    teenChecks: [{ id: 'target', spoken: null }],
+  })
+  expect(wrapper.get('.host-next').attributes('disabled')).toBeDefined()
+  await wrapper
+    .findAll('.teen-review-list button')
+    .find((button) => button.text() === 'Đã nói từ khóa')!
+    .trigger('click')
+  expect(send).toHaveBeenCalledWith('teen-check', { playerId: 'target', spoken: true })
+  const player = page('villager', {
+    phase: 'teen-review',
+    alive: true,
+    action: null,
+    current: null,
+    teenChecks: [],
+  }).wrapper
+  expect(player.find('.teen-review-list').exists()).toBe(false)
+})
+
+it('Leprechaun chooses a bite source and sends a neighbor as the redirect target', async () => {
+  const members = [
+    { id: 'me', name: 'Tú', alive: true, host: false },
+    { id: 'source', name: 'Bình', alive: true, host: false },
+    { id: 'target', name: 'An', alive: true, host: false },
+  ] as Member[]
+  const { wrapper, send } = page(
+    'leprechaun',
+    { alive: true, members, seatOrder: ['me', 'source', 'target'] },
+    { wolfTargets: ['source'] },
+  )
+  await wrapper.get('[aria-label="Nạn nhân Sói muốn chuyển"]').setValue('source')
+  await wrapper.get('.target-grid button').trigger('click')
+  expect(wrapper.get('.night-action > .ww-primary').attributes('disabled')).toBeUndefined()
+  await wrapper.get('.night-action > .ww-primary').trigger('click')
+  expect(send).toHaveBeenCalledWith(
+    'confirm',
+    expect.objectContaining({ targets: ['target'], redirectFrom: 'source' }),
+  )
 })
 it('does not show vote controls to a player banished by Old Hag', () => {
   const { wrapper } = page('villager', {

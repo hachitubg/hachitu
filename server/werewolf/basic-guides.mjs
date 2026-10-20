@@ -20,6 +20,30 @@ export const DRUNK_ROLES = [
   'vampire',
 ]
 export const BASIC_GUIDES = {
+  martyr:
+    'Khi vòng Có/Không quyết định treo một người khác, bạn được chọn hy sinh hoặc bỏ qua trước khi xử tử. Nếu hy sinh, bạn chết thay và người đó được cứu khỏi án treo (vẫn có thể chết bởi liên kết hoặc vết cắn Ma cà rồng). Hoàng tử được miễn treo trước, không cần hy sinh. Nếu có nhiều Kẻ tử đạo, người tình nguyện đầu tiên theo vòng ngồi sẽ chết thay; không giết cả nhóm.',
+  bloody_mary:
+    'Khi sống thuộc Dân. Khi chết, biết phe gây chết (Sói, Ma cà rồng hoặc Dân) và từ đêm sau được chọn một người sống để báo thù hoặc bỏ qua. Chỉ mục tiêu thuộc phe đó lúc chốt mới bị tấn công; không được xem trước ai thuộc phe nào. Phe Sói gồm Sói thật (kể cả Sói đơn độc) và tay sai. Bảo vệ/ban phước có thể chặn đòn báo thù. Bị xử tử hoặc kỹ năng Dân giết thì báo thù Dân; chết theo tình yêu/liên kết mang phe của nguyên nhân gốc. Nếu chết, thắng khi phe đó thua; không tự kết thúc ván. Chết do sự kiện không có phe riêng tính Dân.',
+  leprechaun:
+    'Sau Sói và trước Phù thủy, xem các nạn nhân Sói rồi chuyển tối đa một vết cắn sang người kề nạn nhân trong vòng sống, hoặc bỏ qua. Đầu/cuối vòng kề nhau, bỏ qua chỗ chết. Được chuyển sang Sói hoặc mình. Hai vết cắn không được dồn vào cùng một người. Bảo vệ, bình cứu, ban phước và khả năng phản ứng vết cắn áp dụng trên người nhận mới. Không có vết cắn thì chỉ xác nhận bỏ qua. Nếu có nhiều Yêu tinh do kế thừa, thao tác lần lượt theo vòng ngồi, mỗi người xem vết cắn mới nhất.',
+  beholder:
+    'Đêm đầu xác nhận để biết tên Tiên tri thường đang có trong ván. Không tiết lộ bạn cho Tiên tri, không nhận kết quả soi. Nếu Tiên tri nằm trong lá ẩn của Kẻ say rượu thì chỉ biết Tiên tri chưa xuất hiện, không lộ danh tính Kẻ say rượu. Tiên tri biến thể không được nhận diện.',
+  dream_wolf:
+    'Là Sói thật, bị soi là Sói và tính vào số lượng phe Sói, nhưng không thức dậy hoặc xem đề xuất săn lúc chưa có Sói thật khác chết. Các Sói đang thức biết tên bạn ở đêm đầu; bạn không được danh sách đàn khi đang ngủ. Sau một Sói thật chết (không tính tay sai), bạn tham gia săn từ đêm tiếp theo, kể cả khi chỉ còn mình.',
+  teenage_werewolf:
+    'Săn và thắng cùng Sói. Mỗi ngày phải nói ít nhất một lần từ “Sói” hoặc “Ma sói” trước khi quản trò bắt đầu đêm tiếp theo. Quản trò xác nhận riêng ở bước kiểm tra cuối ngày; chưa nói sẽ bị loại, không thể bảo vệ. Người bị Pháp sư câm hoặc Bà già cấm nói được miễn ngày đó. Không thu âm hay tự nhận dạng giọng nói.',
+  the_mummy:
+    'Mỗi đêm chọn một người khác; ở mọi phiên đề cử và Có/Không của ngày sau, phiếu thực tế của họ đi theo phiếu bạn, vẫn dùng trọng số của chính họ. Họ vẫn chọn/xác nhận phiếu riêng. Nếu bạn chết hoặc bị cấm vote, phiếu họ trở lại bình thường. Hiệu lực ghi đè cả phiếu bắt buộc Yêu hòa bình/Dân ngốc. Nhiều Xác ướp: theo chuỗi điều khiển; vòng lặp thì dùng phiếu gốc của từng người; cùng chọn một mục tiêu thì người cuối theo vòng ngồi chi phối. Không báo người bị tác động; nhật ký quản trò ghi phiếu thực tế.',
+  revealer:
+    'Cả ván chỉ dùng một lần, vào lượt của bạn ở bất kỳ đêm nào: chọn một người khác hoặc bỏ qua để giữ lượt. Chọn Sói thật sẽ tấn công Sói; Bảo vệ/ban phước có thể chặn nhưng vẫn mất lượt. Chọn người không phải Sói thì bạn chết, không thể cứu/bảo vệ khỏi hình phạt. Người lai Sói không phải Sói thật; Sói giả dân/Nanh Sói đang ngủ vẫn là Sói thật. Xét vai tại thời điểm chốt hành động; kết quả xử lý lúc bình minh. Lượt đã chốt vẫn có hiệu lực nếu bạn chết cùng đêm. Đoán đúng cũng không được dùng lại.',
+  big_bad_wolf:
+    'Săn cùng đàn. Khi bạn còn sống đầu đêm, đàn chọn một người hoặc hai người ngồi cạnh nhau trong vòng người còn sống (bỏ qua chỗ đã chết, đầu/cuối vòng cũng kề nhau). Sói con cho hai mục tiêu không cần kề nhau; hai hiệu ứng không cộng thành ba. Con bệnh vẫn khiến cả đàn nghỉ săn. Quản trò cần sắp đúng vòng ngồi trước ván.',
+  dire_wolf:
+    'Đêm đầu chọn một người sống khác để liên kết, được chọn cả Sói. Người đó không được thông báo. Khi họ chết vì bất kỳ nguyên nhân nào, bạn chết theo, không thể cứu/bảo vệ. Bạn chết không khiến họ chết. Sau khi chọn vẫn săn cùng đàn. Nếu được Người nhân bản kế thừa thì liên kết cũng được giữ.',
+  fruit_brute:
+    'Săn cùng đàn như Sói thường khi còn ít nhất một Sói thật khác sống, kể cả Nanh Sói đang ngủ. Khi bạn là Sói thật cuối cùng, đàn không có lượt cắn ban đêm dù có thưởng Sói con; vẫn bỏ phiếu và có thể thắng theo điều kiện số lượng của phe Sói. Tay sai không tính là Sói thật.',
+  fang_face:
+    'Đêm đầu thức dậy cùng đàn, biết tên các Sói và cùng thống nhất nạn nhân. Từ đêm hai ngủ khi còn bất kỳ Sói thật khác sống: không chọn, xác nhận hoặc xem đề xuất săn. Khi thành Sói thật cuối cùng, bắt đầu săn từ đêm kế tiếp. Tay sai không cản bạn thức dậy. Vẫn là Sói thật khi Tiên tri/P.I. soi và khi tính thắng.',
   apprentice_seer:
     'Nếu Tiên tri chết và không còn Tiên tri sống, từ đêm sau bạn được soi một người mỗi đêm. Chỉ biết Sói/không phải Sói; Người lai Sói và Sói giả dân có thể đánh lừa kết quả.',
   bodyguard:
@@ -91,7 +115,7 @@ export const BASIC_GUIDES = {
   huntress:
     'Một lần trong ván, chọn một người khác vào ban đêm để bắn hoặc xác nhận bỏ qua để giữ phát bắn. Bảo vệ và ban phước có thể chặn phát bắn ban đêm này; khác với phát bắn cuối của Thợ săn khi chết.',
   werewolf:
-    'Mỗi đêm cùng các Sói thống nhất mục tiêu và từng người xác nhận. Không cắn Sói khác, ngoại trừ được hy sinh Sói con. Phe Sói thắng khi đạt ít nhất nửa số người sống, còn Sói thường/Sói con/Sói giả dân và không còn Ma cà rồng; Sói đơn độc có mục tiêu thắng riêng.',
+    'Mỗi đêm các Sói đang săn thống nhất mục tiêu và từng người xác nhận. Không cắn Sói khác, ngoại trừ được hy sinh Sói con. Phe Sói thắng khi đạt ít nhất nửa số người sống, còn Sói thật ngoài Sói đơn độc và không còn Ma cà rồng; Sói đơn độc có mục tiêu thắng riêng. Sói ăn chay và Nanh Sói tuân theo giới hạn riêng.',
   villager:
     'Không có thao tác ban đêm. Ban ngày thảo luận, đề cử người giải thích và biểu quyết Có/Không treo cổ. Thắng cùng Dân khi không còn Sói thật, Ma cà rồng hoặc Sói chưa tỉnh trong lá ẩn của Kẻ say rượu.',
 }

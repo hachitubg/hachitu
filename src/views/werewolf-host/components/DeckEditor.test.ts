@@ -2,6 +2,7 @@ import { mount } from '@vue/test-utils'
 import { expect, it } from 'vitest'
 import DeckEditor from './DeckEditor.vue'
 import type { Role } from '../types'
+import sourceDeck from '../../../../public/werewolf-host/deck.json'
 
 it('shows only current cards, opens the library on click, then saves a one-slot replacement', async () => {
   const roles = ['werewolf', 'villager', 'seer', 'witch', 'bodyguard'].map((id) => ({
@@ -74,5 +75,33 @@ it('read-only preview shows the deck without editing, saving or hidden Drunk res
   expect(wrapper.find('.replacement-grid').exists()).toBe(false)
   expect(wrapper.emitted('save')).toBeUndefined()
   expect(wrapper.emitted('suggest')).toBeUndefined()
+  wrapper.unmount()
+})
+
+it('cards-only mode offers every character, including unimplemented roles, and saves the selected card', async () => {
+  const roles: Role[] = sourceDeck.sets.flatMap((set) =>
+    set.roles.map((role) => ({ ...role, set: set.name_vi, enabled: false })),
+  )
+  const wrapper = mount(DeckEditor, {
+    props: {
+      deck: ['villager', 'villager', 'villager', 'villager', 'villager'],
+      count: 5,
+      roles,
+      revision: 1,
+      disabled: false,
+      cardsOnly: true,
+    },
+    global: { stubs: { Icon: true, RoleCard: true } },
+  })
+  await wrapper.get('.selected-deck-slot').trigger('click')
+  expect(wrapper.findAll('.replacement-card')).toHaveLength(67)
+  expect(wrapper.find('.deferred-toggle').exists()).toBe(false)
+  const card = wrapper.get('[aria-label="Chọn Quái vật Frankenstein thay lá 1"]')
+  expect(card.attributes('disabled')).toBeUndefined()
+  await card.trigger('click')
+  await wrapper.get('.sticky-save').trigger('click')
+  expect(wrapper.emitted('save')).toEqual([
+    [['frankenstein', 'villager', 'villager', 'villager', 'villager']],
+  ])
   wrapper.unmount()
 })
