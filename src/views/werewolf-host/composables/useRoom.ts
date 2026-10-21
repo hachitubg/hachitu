@@ -33,23 +33,29 @@ export function useRoom() {
       return false
     }
     if (busy.value) return false
-    busy.value = true
-    error.value = ''
+    const draft = action === 'draft'
+    const code = state.value?.code
+    const revision = data.revision ?? state.value?.revision
+    const current = () =>
+      !draft ||
+      (connected.value && state.value?.code === code && state.value?.revision === revision)
+    if (!draft) busy.value = true
+    if (current()) error.value = ''
     try {
       const reply = (await socket
         .timeout(10000)
         .emitWithAck('command', { action, revision: state.value?.revision, ...data })) as Reply
       if (!reply.ok) {
-        error.value = reply.error || 'Không thực hiện được thao tác.'
+        if (current()) error.value = reply.error || 'Không thực hiện được thao tác.'
         return false
       }
       if (reply.session) session.value = reply.session
       return true
     } catch {
-      error.value = 'Chưa nhận được phản hồi. Hãy kiểm tra kết nối và thử lại.'
+      if (current()) error.value = 'Chưa nhận được phản hồi. Hãy kiểm tra kết nối và thử lại.'
       return false
     } finally {
-      busy.value = false
+      if (!draft) busy.value = false
     }
   }
   socket.on('connect', async () => {

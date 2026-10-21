@@ -8,6 +8,11 @@
 .ww-app * {
   box-sizing: border-box;
 }
+.ww-app main,
+.ww-app section,
+.ww-app aside {
+  min-width: 0;
+}
 .ww-app button,
 .ww-app a {
   touch-action: manipulation;
@@ -718,6 +723,12 @@
   font-size: 12px;
 }
 .identity-list strong {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.identity-list > div > span:not(.avatar) {
+  min-width: 0;
   overflow-wrap: anywhere;
 }
 .identity-list strong small {
@@ -761,6 +772,64 @@
 .night-action > .ww-primary {
   width: 100%;
   margin-top: 12px;
+}
+.action-submit {
+  margin-top: 12px;
+}
+.action-submit > .ww-primary {
+  width: 100%;
+  min-height: 48px;
+}
+.has-targets .action-submit,
+.is-choosing .phase-content > .action-submit {
+  position: sticky;
+  bottom: 0;
+  z-index: 4;
+  padding: 12px 0 max(12px, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--color-border-default);
+  background: var(--color-bg-surface);
+}
+.blank-vote {
+  margin-top: 12px;
+  width: 100%;
+}
+.private-role-preview {
+  width: min(100%, 280px);
+  margin: auto;
+}
+.is-choosing .my-card-area {
+  animation: none;
+}
+@media (max-width: 760px) {
+  .is-choosing .play-layout {
+    gap: 12px;
+  }
+  .is-choosing .my-card-area {
+    max-width: none;
+  }
+  .is-choosing .pocket-card {
+    min-height: 48px;
+  }
+  .is-choosing .my-card-area > .fineprint {
+    display: none;
+  }
+  .is-choosing .phase-heading {
+    margin-bottom: 12px;
+  }
+  .is-choosing .phase-heading h1 {
+    font-size: 22px;
+    margin: 8px 0;
+  }
+  .is-choosing .phase-content {
+    padding: 14px;
+  }
+  .is-choosing .phase-content h2 {
+    font-size: 20px;
+    margin: 8px 0;
+  }
+  .is-choosing .night-action {
+    margin: 12px 0 0;
+  }
 }
 .confirmed {
   display: flex;
@@ -1118,8 +1187,8 @@
     margin-top: 24px;
   }
   .entry-story h1 {
-    font-size: 44px;
-    margin: 14px 0;
+    font-size: 34px;
+    margin: 10px 0;
   }
   .entry-story > p {
     font-size: 12px;
@@ -1155,6 +1224,26 @@
   .member-portrait {
     height: auto;
   }
+  .lobby-players .member-card {
+    animation: none;
+    padding: 12px;
+  }
+  .lobby-players .member-card > .member-portrait {
+    width: 44px;
+    height: 44px;
+    aspect-ratio: 1;
+  }
+  .lobby-players .member-card > div:not(.member-portrait) {
+    padding: 10px 0 0;
+  }
+  .member-card h3 {
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .member-card > svg {
+    color: var(--color-accent-amber);
+    filter: none;
+  }
   .play-layout {
     grid-template-columns: 1fr;
     gap: 20px;
@@ -1185,16 +1274,78 @@
     margin-top: 24px;
   }
   .ww-dialog {
-    width: calc(100vw - 16px);
+    width: 100%;
+    max-width: 100%;
+    max-height: calc(100dvh - 12px);
+    margin: auto auto 0;
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-accent-coral) var(--color-bg-deep);
+  }
+  .ww-dialog::backdrop {
+    backdrop-filter: none;
   }
   .dialog-content {
-    padding: 16px;
+    padding: 16px 16px calc(16px + env(safe-area-inset-bottom, 0px));
   }
   .dialog-content > header {
     top: -16px;
   }
   .dialog-content > header h2 {
     font-size: 18px;
+    overflow-wrap: anywhere;
+  }
+  .dialog-content > header > button {
+    flex-shrink: 0;
+  }
+  .deck-status {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .identity-list > div {
+    gap: 8px;
+  }
+  .identity-list > div > span:not(.avatar) {
+    flex: 0 1 42%;
+  }
+  .identity-list .avatar {
+    width: 32px;
+    height: 32px;
+  }
+  .seat-editor > div {
+    flex-wrap: wrap;
+  }
+  .seat-editor strong {
+    flex-basis: calc(100% - 36px);
+  }
+  .ww-app .sticky-save {
+    bottom: 0;
+    min-height: 48px;
+    white-space: normal;
+  }
+  .history-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+  .history-tabs button {
+    flex-shrink: 0;
+  }
+  .end-actions > button {
+    flex: 1 1 140px;
+  }
+  .room-ticket {
+    gap: 12px;
+    padding: 12px;
+  }
+  .room-ticket img {
+    width: 88px;
+    height: 88px;
+  }
+  .room-ticket strong {
+    font-size: clamp(20px, 6vw, 29px);
+  }
+  .room-ticket > div {
+    min-width: 0;
   }
   .deck-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));

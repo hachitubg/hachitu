@@ -1,4 +1,4 @@
-import { mount } from '@vue/test-utils'
+import { mount, flushPromises } from '@vue/test-utils'
 import { ref, shallowRef } from 'vue'
 import { afterAll, afterEach, beforeAll, expect, it, vi } from 'vitest'
 import type { RoomState, Member } from '../types'
@@ -38,6 +38,7 @@ afterAll(() => {
 afterEach(() => {
   wrappers.splice(0).forEach((wrapper) => wrapper.unmount())
   vi.clearAllMocks()
+  vi.useRealTimers()
 })
 function page(
   key: string,
@@ -116,8 +117,9 @@ function page(
     myWon: null,
     ...extra,
   } as RoomState
+  const roomState = shallowRef(state)
   mocks.useRoom.mockReturnValue({
-    state: shallowRef(state),
+    state: roomState,
     catalog: shallowRef([
       {
         id: key,
@@ -148,13 +150,80 @@ function page(
     },
   })
   wrappers.push(wrapper)
-  return { wrapper, send }
+  return { wrapper, send, roomState }
 }
+async function confirmSelection(wrapper: ReturnType<typeof mount>) {
+  await wrapper.get('.night-action .action-submit > .ww-primary').trigger('click')
+  await flushPromises()
+}
+
+it('lets the player change targets during a slow draft and confirms only the latest choice', async () => {
+  vi.useFakeTimers()
+  const members = [
+    { id: 'target', name: 'An', alive: true, avatar: '', seat: 1 },
+    { id: 'second', name: 'Bình', alive: true, avatar: '', seat: 2 },
+  ] as Member[]
+  const { wrapper, send } = page(
+    'seer',
+    { alive: true, members },
+    { options: ['target', 'second'], optional: false },
+  )
+  let resolveFirst!: (value: boolean) => void
+  send.mockImplementationOnce(
+    () =>
+      new Promise<boolean>((resolve) => {
+        resolveFirst = resolve
+      }),
+  )
+  await wrapper.findAll('.target-grid button')[0]!.trigger('click')
+  await vi.advanceTimersByTimeAsync(100)
+  expect(wrapper.findAll('.target-grid button')[1]!.attributes('disabled')).toBeUndefined()
+  await wrapper.findAll('.target-grid button')[1]!.trigger('click')
+  expect(wrapper.findAll('.target-grid button')[1]!.attributes('aria-pressed')).toBe('true')
+  await wrapper.get('.night-action .action-submit > .ww-primary').trigger('click')
+  expect(send.mock.calls.map((call) => call[0])).toEqual(['draft'])
+  resolveFirst(false)
+  await flushPromises()
+  expect(send.mock.calls.map((call) => [call[0], call[1].targets])).toEqual([
+    ['draft', ['target']],
+    ['draft', ['second']],
+    ['confirm', ['second']],
+  ])
+})
+
+it('does not confirm a previous turn after an old draft finishes', async () => {
+  const { wrapper, send, roomState } = page('seer', { alive: true })
+  let resolveDraft!: (value: boolean) => void
+  send.mockImplementationOnce(
+    () =>
+      new Promise<boolean>((resolve) => {
+        resolveDraft = resolve
+      }),
+  )
+  await wrapper.get('.target-grid button').trigger('click')
+  await wrapper.get('.night-action .action-submit > .ww-primary').trigger('click')
+  roomState.value = { ...roomState.value, revision: 2, phase: 'day', current: null, action: null }
+  await wrapper.vm.$nextTick()
+  resolveDraft(true)
+  await flushPromises()
+  expect(send.mock.calls.map((call) => call[0])).toEqual(['draft'])
+})
+
+it('hides the private role popup on blur while retaining the selected target', async () => {
+  const { wrapper } = page('seer', { alive: true })
+  await wrapper.get('.target-grid button').trigger('click')
+  await wrapper.get('[aria-label="Xem vai trò của tôi"]').trigger('click')
+  expect(wrapper.find('.private-role-preview').exists()).toBe(true)
+  window.dispatchEvent(new Event('blur'))
+  await wrapper.vm.$nextTick()
+  expect(wrapper.find('.private-role-preview').exists()).toBe(false)
+  expect(wrapper.get('.target-grid button').attributes('aria-pressed')).toBe('true')
+})
 it('lets a dead Hunter select and confirm a target rather than showing the dead waiting screen', async () => {
   const { wrapper, send } = page('hunter')
   expect(wrapper.find('.ww-rest').exists()).toBe(false)
   await wrapper.find('.target-grid button').trigger('click')
-  await wrapper.find('.night-action > .ww-primary').trigger('click')
+  await confirmSelection(wrapper)
   expect(send).toHaveBeenCalledWith('confirm', expect.objectContaining({ targets: ['target'] }))
 })
 
@@ -165,10 +234,11 @@ it('Big Bad Wolf can confirm one victim without being forced to select two', asy
     { min: 1, max: 2, optional: false, adjacentPair: true, pairs: [] },
   )
   await wrapper.get('.target-grid button').trigger('click')
-  expect(send).toHaveBeenCalledWith('draft', expect.objectContaining({ targets: ['target'] }))
-  const confirm = wrapper.get('.night-action > .ww-primary')
+  expect(wrapper.get('.target-grid button').attributes('aria-pressed')).toBe('true')
+  const confirm = wrapper.get('.night-action .action-submit > .ww-primary')
   expect(confirm.attributes('disabled')).toBeUndefined()
   await confirm.trigger('click')
+  await flushPromises()
   expect(send).toHaveBeenCalledWith('confirm', expect.objectContaining({ targets: ['target'] }))
 })
 it('lets a dead Ghost submit a letter without showing player target buttons', async () => {
@@ -176,17 +246,17 @@ it('lets a dead Ghost submit a letter without showing player target buttons', as
   expect(wrapper.find('.ww-rest').exists()).toBe(false)
   expect(wrapper.find('.target-grid').exists()).toBe(false)
   await wrapper.find('[aria-label="Chữ cái của Hồn ma"]').setValue('Z')
-  await wrapper.find('.night-action > .ww-primary').trigger('click')
+  await confirmSelection(wrapper)
   expect(send).toHaveBeenCalledWith('confirm', expect.objectContaining({ targets: [], text: 'Z' }))
 })
 
 it('lets Revealer skip the night or confirm one target with a one-use explanation', async () => {
   const { wrapper, send } = page('revealer', { alive: true })
   expect(wrapper.text()).toContain('Cả ván chỉ có một lượt khám phá')
-  await wrapper.get('.night-action > .ww-primary').trigger('click')
+  await confirmSelection(wrapper)
   expect(send).toHaveBeenCalledWith('confirm', expect.objectContaining({ targets: [] }))
   await wrapper.get('.target-grid button').trigger('click')
-  await wrapper.get('.night-action > .ww-primary').trigger('click')
+  await confirmSelection(wrapper)
   expect(send).toHaveBeenCalledWith('confirm', expect.objectContaining({ targets: ['target'] }))
 })
 
@@ -199,7 +269,7 @@ it('Martyr can explicitly volunteer or decline before the host executes anyone',
   expect(wrapper.text()).toContain('Kẻ tử đạo có cứu An không?')
   expect(wrapper.find('.target-grid').exists()).toBe(false)
   await wrapper.get('.night-action .potion input').setValue(true)
-  await wrapper.get('.night-action > .ww-primary').trigger('click')
+  await confirmSelection(wrapper)
   expect(send).toHaveBeenCalledWith(
     'confirm',
     expect.objectContaining({ targets: [], activate: true }),
@@ -210,7 +280,7 @@ it('Bloody Mary receives target controls while dead, without the dead waiting ov
   const { wrapper, send } = page('bloody_mary')
   expect(wrapper.find('.ww-rest').exists()).toBe(false)
   await wrapper.get('.target-grid button').trigger('click')
-  await wrapper.get('.night-action > .ww-primary').trigger('click')
+  await confirmSelection(wrapper)
   expect(send).toHaveBeenCalledWith('confirm', expect.objectContaining({ targets: ['target'] }))
 })
 
@@ -252,8 +322,11 @@ it('Leprechaun chooses a bite source and sends a neighbor as the redirect target
   )
   await wrapper.get('[aria-label="Nạn nhân Sói muốn chuyển"]').setValue('source')
   await wrapper.get('.target-grid button').trigger('click')
-  expect(wrapper.get('.night-action > .ww-primary').attributes('disabled')).toBeUndefined()
-  await wrapper.get('.night-action > .ww-primary').trigger('click')
+  expect(wrapper.get('.target-grid button').attributes('aria-pressed')).toBe('true')
+  expect(
+    wrapper.get('.night-action .action-submit > .ww-primary').attributes('disabled'),
+  ).toBeUndefined()
+  await confirmSelection(wrapper)
   expect(send).toHaveBeenCalledWith(
     'confirm',
     expect.objectContaining({ targets: ['target'], redirectFrom: 'source' }),

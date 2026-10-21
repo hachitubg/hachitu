@@ -42,5 +42,8 @@ jobs:
       - name: Werewolf rules and realtime tests
         run: pnpm test:werewolf
 
+      - name: Werewolf pair matrix
+        run: pnpm test:werewolf:matrix
+
       - name: Build
         run: pnpm build

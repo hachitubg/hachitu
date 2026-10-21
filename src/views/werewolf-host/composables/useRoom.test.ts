@@ -40,6 +40,60 @@ afterEach(() => {
 })
 
 describe('werewolf client session recovery', () => {
+  it('does not lock target buttons for a draft or release the lock of an active confirmation', async () => {
+    const room = scope.run(useRoom)!
+    await mocks.handlers.get('connect')!()
+    let resolveDraft!: (reply: Reply) => void
+    let resolveConfirm!: (reply: Reply) => void
+    mocks.socket.emitWithAck
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveDraft = resolve
+          }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveConfirm = resolve
+          }),
+      )
+    const draft = room.send('draft', { targets: ['a'] })
+    expect(room.busy.value).toBe(false)
+    const confirm = room.send('confirm', { targets: ['a'] })
+    expect(room.busy.value).toBe(true)
+    resolveDraft({ ok: true })
+    await draft
+    expect(room.busy.value).toBe(true)
+    resolveConfirm({ ok: true })
+    await confirm
+    expect(room.busy.value).toBe(false)
+  })
+  it('ignores draft errors from a previous turn', async () => {
+    const room = scope.run(useRoom)!
+    await mocks.handlers.get('connect')!()
+    await mocks.handlers.get('state')!({
+      code: 'ABC123',
+      revision: 1,
+      serverTime: Date.now(),
+    } as RoomState)
+    let resolveDraft!: (reply: Reply) => void
+    mocks.socket.emitWithAck.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveDraft = resolve
+        }),
+    )
+    const draft = room.send('draft', { revision: 1, targets: ['a'] })
+    await mocks.handlers.get('state')!({
+      code: 'ABC123',
+      revision: 2,
+      serverTime: Date.now(),
+    } as RoomState)
+    resolveDraft({ ok: false, error: 'Lỗi của lượt cũ' })
+    expect(await draft).toBe(false)
+    expect(room.error.value).toBe('')
+  })
   it('rehydrates stored JSON into a resume credential object', async () => {
     localStorage.setItem(storageKey, JSON.stringify(saved))
     const room = scope.run(useRoom)!

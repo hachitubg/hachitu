@@ -33,6 +33,7 @@ const filtered = computed(() =>
     <label class="library-search"
       ><Icon icon="lucide:search" /><input
         v-model="query"
+        class="library-query"
         type="search"
         placeholder="Tìm tên lá bài…"
         aria-label="Tìm theo tên lá bài"
@@ -110,7 +111,7 @@ const filtered = computed(() =>
   border: 1px solid var(--color-border-default);
   padding: 0 12px;
 }
-.library-search input {
+.card-library .library-search input.library-query {
   width: 100%;
   min-width: 0;
   border: 0;
@@ -181,6 +182,19 @@ const filtered = computed(() =>
   margin: 10px 0 6px;
 }
 @media (max-width: 540px) {
+  .library-factions {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    padding-bottom: 4px;
+    scrollbar-width: none;
+  }
+  .library-factions::-webkit-scrollbar {
+    display: none;
+  }
+  .library-factions button {
+    flex-shrink: 0;
+  }
   .library-card {
     grid-template-columns: 76px minmax(0, 1fr);
     gap: 12px;

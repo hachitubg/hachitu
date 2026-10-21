@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onScopeDispose, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import {
@@ -16,6 +16,8 @@ import AvatarPicker from './components/AvatarPicker.vue'
 import PlayerAvatar from './components/PlayerAvatar.vue'
 import NightJournal from './components/NightJournal.vue'
 import CardLibrary from './components/CardLibrary.vue'
+import TargetPicker from './components/TargetPicker.vue'
+import { useTargetDraft } from './composables/useTargetDraft'
 import { randomAvatar } from './utils/avatars'
 import { sessionStandings } from './utils/journal'
 import { artStyle, phaseNames, winnerTitle } from './types'
@@ -23,6 +25,12 @@ import type { Input } from './types'
 import './styles.css'
 
 const { state, catalog, connected, busy, error, countdown, send, reconnect } = useRoom()
+const targetDraft = useTargetDraft(send)
+const confirmingChoice = ref(false)
+let submission = 0
+onScopeDispose(() => {
+  submission++
+})
 const { copy, copied } = useClipboard()
 const { y: scrollY } = useWindowScroll()
 const mode = ref<'create' | 'join'>('create')
@@ -57,12 +65,21 @@ const modal = ref<
   | 'qr'
   | 'reset-night'
   | 'finish-manual'
+  | 'my-role'
   | null
 >(null)
 const confirmingAbort = ref(false)
 const dialog = ref<HTMLDialogElement>()
 const historyGame = ref<number | null>(null)
 const people = computed(() => state.value?.members.filter((p) => !p.host) || [])
+const targetCandidates = computed(() => {
+  const options = new Set(state.value?.action?.options || [])
+  return people.value.filter((p) => options.has(p.id))
+})
+const nominationCandidates = computed(() => {
+  const eligible = new Set(state.value?.eligible || [])
+  return people.value.filter((p) => eligible.has(p.id))
+})
 const me = computed(() => people.value.find((p) => p.id === state.value?.myId))
 const roleById = (id: string | null | undefined) => catalog.value.find((r) => r.id === id)
 const myRole = computed(() => roleById(state.value?.myRole))
@@ -119,8 +136,17 @@ watch(modal, async (value) => {
   else if (!value && dialog.value?.open) dialog.value.close()
 })
 watch(
-  () => state.value?.revision,
+  [
+    () => state.value?.code,
+    () => state.value?.game,
+    () => state.value?.revision,
+    () => state.value?.action?.key,
+  ],
   () => {
+    targetDraft.reset()
+    if (modal.value === 'my-role') modal.value = null
+    submission++
+    confirmingChoice.value = false
     targets.value = [...(state.value?.action?.targets || [])]
     savePotion.value = state.value?.action?.save || false
     saveTarget.value =
@@ -137,7 +163,15 @@ watch(
     vote.value = null
     revealed.value = false
   },
+  { immediate: true },
 )
+watch(connected, (value) => {
+  if (!value) {
+    targetDraft.reset()
+    submission++
+    confirmingChoice.value = false
+  }
+})
 let suppressRevealClickUntil = 0
 function toggleReveal() {
   if (Date.now() >= suppressRevealClickUntil) revealed.value = !revealed.value
@@ -152,6 +186,7 @@ useSwipe(revealButton, {
 })
 useEventListener(window, 'blur', () => {
   revealed.value = false
+  if (modal.value === 'my-role') modal.value = null
 })
 const locked = computed(() => busy.value || !connected.value || !!state.value?.paused)
 const nextLabel = computed(() => {
@@ -224,6 +259,7 @@ const validTargets = computed(() => {
 const canConfirm = computed(
   () =>
     !locked.value &&
+    !confirmingChoice.value &&
     !!state.value?.action &&
     !state.value.action.confirmed &&
     (optionalAction.value ||
@@ -240,6 +276,24 @@ const deathWaiting = computed(
     state.value.phase !== 'ended',
 )
 const shownHistory = computed(() => state.value?.history.find((h) => h.game === historyGame.value))
+const targetSelectionActive = computed(
+  () =>
+    !!state.value?.action &&
+    !state.value.action.confirmed &&
+    state.value.action.kind === 'targets' &&
+    actionMax.value > 0,
+)
+function choiceInput(): Input {
+  return {
+    revision: state.value?.revision,
+    targets: [...targets.value],
+    save: savePotion.value,
+    saveTarget: saveTarget.value,
+    redirectFrom: redirectFrom.value,
+    text: ghostLetter.value,
+    activate: activateSkill.value,
+  }
+}
 async function enter() {
   await send(mode.value === 'create' ? 'create' : 'join', {
     name: name.value,
@@ -309,35 +363,44 @@ async function saveDeck(deck: string[], drunkRole?: string) {
 async function suggest() {
   await send('suggest')
 }
-async function selectTarget(id: string) {
-  if (locked.value || state.value?.action?.confirmed || actionMax.value === 0) return
+function selectTarget(id: string) {
+  if (
+    locked.value ||
+    confirmingChoice.value ||
+    state.value?.action?.confirmed ||
+    actionMax.value === 0
+  )
+    return
   if (targets.value.includes(id)) targets.value = targets.value.filter((key) => key !== id)
   else
     targets.value =
       actionMax.value === 1 ? [id] : [...targets.value.slice(-(actionMax.value - 1)), id]
   if (validTargets.value && (targets.value.length >= actionMin.value || optionalAction.value)) {
-    const ok = await send('draft', {
-      targets: targets.value,
-      save: savePotion.value,
-      saveTarget: saveTarget.value,
-      redirectFrom: redirectFrom.value,
-    })
-    if (!ok) targets.value = [...(state.value?.action?.targets || [])]
-  }
+    targetDraft.queue(choiceInput())
+  } else targetDraft.reset()
 }
 function chooseVote(value: string | boolean | null) {
+  if (locked.value || confirmingChoice.value) return
   vote.value = value
   voteChosen.value = true
 }
 async function confirmNight() {
-  await send('confirm', {
-    targets: targets.value,
-    save: savePotion.value,
-    saveTarget: saveTarget.value,
-    redirectFrom: redirectFrom.value,
-    text: ghostLetter.value,
-    activate: activateSkill.value,
-  })
+  if (!canConfirm.value) return
+  confirmingChoice.value = true
+  const ticket = ++submission
+  const input = choiceInput()
+  targetDraft.queue(input)
+  try {
+    if (
+      (await targetDraft.flush()) &&
+      ticket === submission &&
+      connected.value &&
+      !state.value?.paused
+    )
+      await send('confirm', input)
+  } finally {
+    if (ticket === submission) confirmingChoice.value = false
+  }
 }
 function moveSeat(index: number, direction: number) {
   const next = index + direction
@@ -610,7 +673,14 @@ function handleDialogClick(event: MouseEvent) {
       <span>Ván {{ state.game }} · {{ phaseNames[state.phase] }}</span>
     </main>
 
-    <main v-else class="ww-game">
+    <main
+      v-else
+      class="ww-game"
+      :class="{
+        'is-choosing':
+          targetSelectionActive || (state.phase === 'nominate' && !state.host && !state.voted),
+      }"
+    >
       <div class="phase-heading">
         <span class="eyebrow"
           >PHÒNG {{ state.code }} · VÁN {{ state.game
@@ -685,44 +755,54 @@ function handleDialogClick(event: MouseEvent) {
         <div class="play-layout">
           <aside v-if="!state.host" class="my-card-area">
             <button
-              v-if="!revealed && !['reveal', 'dealt'].includes(state.phase)"
+              v-if="targetSelectionActive"
               class="pocket-card"
               aria-label="Xem vai trò của tôi"
-              @click="toggleReveal"
+              @click="modal = 'my-role'"
             >
-              <Icon icon="lucide:moon-star" /><span
-                >Lá bài của bạn<small>Chạm để xem bí mật</small></span
-              ><Icon icon="lucide:eye" />
+              <Icon icon="lucide:eye" /><span>Lá bài của tôi<small>Chạm để xem riêng</small></span>
             </button>
-            <button
-              v-else
-              ref="revealButton"
-              class="my-card"
-              :aria-label="revealed ? 'Ẩn vai trò của tôi' : 'Xem vai trò của tôi'"
-              :aria-pressed="revealed"
-              @click="toggleReveal"
-            >
-              <RoleCard :role="myRole" :concealed="!revealed" /></button
-            ><button
-              v-if="state.phase === 'reveal' && !state.seen"
-              class="ww-primary"
-              :disabled="locked || !revealed"
-              @click="run('seen')"
-            >
-              Tôi đã xem bài<Icon icon="lucide:check" />
-            </button>
-            <p v-else class="fineprint">
-              Chạm để {{ revealed ? 'úp bài' : 'xem bài' }} · Giữ bí mật vai trò
-            </p>
-            <div v-if="revealed && myRole" class="private-notes">
-              <strong>{{ myRole.name_vi }}</strong>
-              <p>{{ myRole.guide_vi || myRole.ability_vi }}</p>
-              <p>{{ myRole.win_condition_vi }}</p>
-            </div>
-            <details v-if="state.notes.length" class="private-notes">
-              <summary>Kết quả riêng của bạn</summary>
-              <p v-for="(note, i) in state.notes" :key="i">{{ note }}</p>
-            </details>
+            <template v-else>
+              <button
+                v-if="!revealed && !['reveal', 'dealt'].includes(state.phase)"
+                class="pocket-card"
+                aria-label="Xem vai trò của tôi"
+                @click="toggleReveal"
+              >
+                <Icon icon="lucide:moon-star" /><span
+                  >Lá bài của bạn<small>Chạm để xem bí mật</small></span
+                ><Icon icon="lucide:eye" />
+              </button>
+              <button
+                v-else
+                ref="revealButton"
+                class="my-card"
+                :aria-label="revealed ? 'Ẩn vai trò của tôi' : 'Xem vai trò của tôi'"
+                :aria-pressed="revealed"
+                @click="toggleReveal"
+              >
+                <RoleCard :role="myRole" :concealed="!revealed" /></button
+              ><button
+                v-if="state.phase === 'reveal' && !state.seen"
+                class="ww-primary"
+                :disabled="locked || !revealed"
+                @click="run('seen')"
+              >
+                Tôi đã xem bài<Icon icon="lucide:check" />
+              </button>
+              <p v-else class="fineprint">
+                Chạm để {{ revealed ? 'úp bài' : 'xem bài' }} · Giữ bí mật vai trò
+              </p>
+              <div v-if="revealed && myRole" class="private-notes">
+                <strong>{{ myRole.name_vi }}</strong>
+                <p>{{ myRole.guide_vi || myRole.ability_vi }}</p>
+                <p>{{ myRole.win_condition_vi }}</p>
+              </div>
+              <details v-if="state.notes.length" class="private-notes">
+                <summary>Kết quả riêng của bạn</summary>
+                <p v-for="(note, i) in state.notes" :key="i">{{ note }}</p>
+              </details>
+            </template>
           </aside>
           <section class="phase-content">
             <template v-if="['reveal', 'dealt'].includes(state.phase)"
@@ -833,7 +913,11 @@ function handleDialogClick(event: MouseEvent) {
                         roleById(state.current.key)?.ability_vi
                 }}
               </p>
-              <div v-if="state.action" class="night-action">
+              <div
+                v-if="state.action"
+                class="night-action"
+                :class="{ 'has-targets': targetSelectionActive }"
+              >
                 <p v-if="state.action.confirmed" class="confirmed">
                   <Icon icon="lucide:check-check" />Đã xác nhận. Bạn có thể nhắm mắt.
                 </p>
@@ -878,12 +962,17 @@ function handleDialogClick(event: MouseEvent) {
                   <label v-if="state.action.kind === 'letter'" class="special-action"
                     >Gợi ý của Hồn ma: một chữ cái, không dùng chữ đầu tên người chơi<input
                       v-model="ghostLetter"
+                      :disabled="locked || confirmingChoice"
                       maxlength="2"
                       aria-label="Chữ cái của Hồn ma"
                       placeholder="Để trống để bỏ qua"
                   /></label>
                   <label v-if="state.action.kind === 'activate'" class="potion"
-                    ><input v-model="activateSkill" type="checkbox" />{{
+                    ><input
+                      v-model="activateSkill"
+                      type="checkbox"
+                      :disabled="locked || confirmingChoice"
+                    />{{
                       state.action.key === 'martyr'
                         ? `Tôi tự nguyện chết thay ${personName(state.nominee)}.`
                         : 'Kích hoạt Kẻ phá rối: ngày mai có hai phiên biểu quyết.'
@@ -896,7 +985,11 @@ function handleDialogClick(event: MouseEvent) {
                       state.action.wolfTargets?.length
                     "
                     class="potion"
-                    ><input v-model="savePotion" type="checkbox" />Dùng bình cứu
+                    ><input
+                      v-model="savePotion"
+                      type="checkbox"
+                      :disabled="locked || confirmingChoice"
+                    />Dùng bình cứu
                     {{
                       state.action.wolfTargets.length === 1
                         ? personName(state.action.wolfTargets[0])
@@ -908,6 +1001,7 @@ function handleDialogClick(event: MouseEvent) {
                     class="special-action"
                     >Chọn người được cứu<select
                       v-model="saveTarget"
+                      :disabled="locked || confirmingChoice"
                       aria-label="Nạn nhân được bình cứu"
                     >
                       <option :value="null" disabled>Chọn một người</option>
@@ -921,6 +1015,7 @@ function handleDialogClick(event: MouseEvent) {
                     class="special-action"
                     >Vết cắn muốn chuyển<select
                       v-model="redirectFrom"
+                      :disabled="locked || confirmingChoice"
                       aria-label="Nạn nhân Sói muốn chuyển"
                     >
                       <option :value="null" disabled>Chọn một nạn nhân</option>
@@ -944,19 +1039,15 @@ function handleDialogClick(event: MouseEvent) {
                     Cả ván chỉ có một lượt khám phá. Chưa muốn dùng thì xác nhận Bỏ qua để giữ lượt
                     cho đêm sau.
                   </p>
-                  <div v-if="actionMax" class="target-grid">
-                    <button
-                      v-for="p in people.filter((p) => state?.action?.options.includes(p.id))"
-                      :key="p.id"
-                      :aria-pressed="targets.includes(p.id)"
-                      :disabled="locked"
-                      @click="selectTarget(p.id)"
-                    >
-                      <PlayerAvatar class="avatar" :value="p.avatar" :name="p.name" />{{ p.name
-                      }}<small v-if="state.action.adjacentPair">Chỗ {{ p.seat }}</small
-                      ><Icon v-if="targets.includes(p.id)" icon="lucide:check" />
-                    </button>
-                  </div>
+                  <TargetPicker
+                    v-if="actionMax"
+                    :key="`${state.code}:${state.game}:${state.revision}:${state.action.key}`"
+                    :players="targetCandidates"
+                    :selected="targets"
+                    :limit="actionMax"
+                    :disabled="locked || confirmingChoice"
+                    @select="selectTarget"
+                  />
                   <p v-if="!validTargets" class="ww-alert">
                     {{
                       state.action.key === 'leprechaun'
@@ -964,17 +1055,21 @@ function handleDialogClick(event: MouseEvent) {
                         : 'Hai mục tiêu phải ngồi cạnh nhau trong vòng người còn sống. Hãy đổi một mục tiêu hoặc chỉ chọn một người.'
                     }}
                   </p>
-                  <button class="ww-primary" :disabled="!canConfirm" @click="confirmNight">
-                    <Icon icon="lucide:check" />Xác nhận{{
-                      optionalAction &&
-                      !targets.length &&
-                      !savePotion &&
-                      !ghostLetter &&
-                      !activateSkill
-                        ? ' · Bỏ qua'
-                        : ''
-                    }}
-                  </button></template
+                  <div class="action-submit">
+                    <button class="ww-primary" :disabled="!canConfirm" @click="confirmNight">
+                      <Icon icon="lucide:check" />{{
+                        confirmingChoice ? 'Đang xác nhận…' : 'Xác nhận'
+                      }}{{
+                        optionalAction &&
+                        !targets.length &&
+                        !savePotion &&
+                        !ghostLetter &&
+                        !activateSkill
+                          ? ' · Bỏ qua'
+                          : ''
+                      }}
+                    </button>
+                  </div></template
                 >
               </div>
               <div v-if="state.choices.length" class="live-choices">
@@ -1060,17 +1155,20 @@ function handleDialogClick(event: MouseEvent) {
                   <Icon icon="lucide:check-check" />Phiếu của bạn đã được ghi nhận.
                 </p>
                 <template v-else
-                  ><div v-if="state.phase === 'nominate'" class="target-grid">
+                  ><div v-if="state.phase === 'nominate'">
+                    <TargetPicker
+                      :key="`${state.game}:${state.revision}:nominate`"
+                      :players="nominationCandidates"
+                      :selected="voteChosen && typeof vote === 'string' ? [vote] : []"
+                      :disabled="locked"
+                      @select="chooseVote"
+                    />
                     <button
-                      v-for="p in people.filter((p) => state?.eligible.includes(p.id))"
-                      :key="p.id"
-                      :aria-pressed="voteChosen && vote === p.id"
-                      @click="chooseVote(p.id)"
+                      class="blank-vote"
+                      :disabled="locked"
+                      :aria-pressed="voteChosen && vote === null"
+                      @click="chooseVote(null)"
                     >
-                      <PlayerAvatar class="avatar" :value="p.avatar" :name="p.name" />{{
-                        p.name
-                      }}</button
-                    ><button :aria-pressed="voteChosen && vote === null" @click="chooseVote(null)">
                       Phiếu trắng
                     </button>
                   </div>
@@ -1095,9 +1193,11 @@ function handleDialogClick(event: MouseEvent) {
                   >
                     Lá bài của bạn quy định lựa chọn trong vòng này.
                   </p>
-                  <button class="ww-primary" :disabled="locked || !voteChosen" @click="voteNow">
-                    Xác nhận phiếu
-                  </button></template
+                  <div class="action-submit">
+                    <button class="ww-primary" :disabled="locked || !voteChosen" @click="voteNow">
+                      Xác nhận phiếu
+                    </button>
+                  </div></template
                 ></template
               ></template
             >
@@ -1146,32 +1246,38 @@ function handleDialogClick(event: MouseEvent) {
         <header>
           <h2>
             {{
-              modal === 'reset-night'
-                ? 'Làm lại đêm gần nhất'
-                : modal === 'finish-manual'
-                  ? 'Kết thúc ván trực tiếp'
-                  : modal === 'catalog'
-                    ? 'Thư viện bộ bài'
-                    : modal === 'qr'
-                      ? 'Quét mã để vào phòng'
-                      : modal === 'deck'
-                        ? 'Bộ bài của buổi chơi'
-                        : modal === 'people'
-                          ? 'Quanh bàn chơi'
-                          : modal === 'history'
-                            ? 'Lịch sử các ván'
-                            : modal === 'stats'
-                              ? 'Bảng thành tích buổi chơi'
-                              : modal === 'journal'
-                                ? `Nhật ký đêm · Ván ${state?.game}`
-                                : modal === 'seats'
-                                  ? 'Vòng chỗ ngồi'
-                                  : 'Cách chơi cùng bạn bè'
+              modal === 'my-role'
+                ? 'Lá bài của tôi'
+                : modal === 'reset-night'
+                  ? 'Làm lại đêm gần nhất'
+                  : modal === 'finish-manual'
+                    ? 'Kết thúc ván trực tiếp'
+                    : modal === 'catalog'
+                      ? 'Thư viện bộ bài'
+                      : modal === 'qr'
+                        ? 'Quét mã để vào phòng'
+                        : modal === 'deck'
+                          ? 'Bộ bài của buổi chơi'
+                          : modal === 'people'
+                            ? 'Quanh bàn chơi'
+                            : modal === 'history'
+                              ? 'Lịch sử các ván'
+                              : modal === 'stats'
+                                ? 'Bảng thành tích buổi chơi'
+                                : modal === 'journal'
+                                  ? `Nhật ký đêm · Ván ${state?.game}`
+                                  : modal === 'seats'
+                                    ? 'Vòng chỗ ngồi'
+                                    : 'Cách chơi cùng bạn bè'
             }}
           </h2>
           <button aria-label="Đóng" @click="closeModal"><Icon icon="lucide:x" /></button>
         </header>
         <p v-if="error" class="ww-alert" role="alert">{{ error }}</p>
+        <section v-if="modal === 'my-role' && myRole" class="private-role-preview">
+          <RoleCard :role="myRole" />
+          <p class="fineprint">Giữ bí mật vai trò. Đóng để quay lại chọn người chơi.</p>
+        </section>
         <section v-if="modal === 'reset-night' && state?.host">
           <h3>Làm lại đêm {{ state.round }}?</h3>
           <p>
@@ -1269,9 +1375,13 @@ function handleDialogClick(event: MouseEvent) {
                     ? 'Quản trò'
                     : !p.connected
                       ? 'Mất kết nối'
-                      : p.alive
-                        ? 'Đang chơi'
-                        : 'Đã bị loại'
+                      : state?.phase === 'lobby'
+                        ? p.ready
+                          ? 'Đã sẵn sàng'
+                          : 'Đang chuẩn bị'
+                        : p.alive
+                          ? 'Đang chơi'
+                          : 'Đã bị loại'
                 }}</small></strong
               ><span v-if="p.role"
                 >{{ roleName(p.role)

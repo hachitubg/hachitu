@@ -638,3 +638,33 @@ test('reset from the new end-of-day review restores Mary, Mummy effects and all 
   assert.deepEqual(room.teenChecks, {})
   assert.deepEqual(room.revengeAttacks, [])
 })
+
+test('a clone inheriting Dire Wolf from a linked death also dies immediately', () => {
+  const room = setup([
+    'werewolf',
+    'dire_wolf',
+    'doppelganger',
+    'villager',
+    'villager',
+    'villager',
+    'villager',
+  ])
+  const p = players(room)
+  night(room, (key) =>
+    key === 'dire_wolf'
+      ? { targets: [p[3].id] }
+      : key === 'doppelganger'
+        ? { targets: [p[1].id] }
+        : key === 'wolves'
+          ? { targets: [p[6].id] }
+          : null,
+  )
+  p[2].used.blessed = true
+  execute(room, p[3])
+  assert.equal(p[1].alive, false)
+  assert.equal(p[2].role, 'dire_wolf')
+  assert.equal(p[2].direTarget, p[3].id)
+  assert.equal(p[2].alive, false)
+  assert.equal(p[2].used.blessed, true)
+  assert.equal(new Set(room.deaths).size, room.deaths.length)
+})

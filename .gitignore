@@ -65,3 +65,6 @@ skills-lock.json
 
 # Local dev logs
 dev-server*.log
+
+# Reproducible Werewolf audit output
+server/werewolf/test-results/

@@ -19,6 +19,13 @@ Khi tạo phòng, quản trò có thể bật **Chỉ dùng bộ bài**. Cấu h
 
 ## Chọn bộ bài, nhật ký và thành tích
 
+### Chọn người chơi trên điện thoại
+
+- Lượt kỹ năng và vòng đề cử dùng chung danh sách avatar + tên + số chỗ. Từ 8 người có tìm tên không dấu; danh sách có vùng cuộn giới hạn, không cần chờ ảnh tải xong để chọn.
+- Chọn được phản hồi ngay trên máy. Lựa chọn nháp được gộp trong 100 ms và gửi tuần tự; không bật khóa toàn trang trong khi chờ ACK. Bấm xác nhận sẽ gửi xong lựa chọn cuối rồi mới chốt; lệnh của lượt cũ bị bỏ qua khi đổi pha/mất kết nối.
+- Không có hiệu ứng phóng/nhảy từng ô, avatar giữ nguyên DOM khi đổi trạng thái chọn. Nút xác nhận có vùng dính đáy và safe area. Khi đang chọn, lá riêng mở trong popup để dành diện tích cho mục tiêu.
+- Fixture 24 người để kiểm tra mobile trên Vite: `/src/views/werewolf-host/__tests__/fixtures/target-picker.html`. Chỉ dùng xem thử component khi chạy `pnpm dev`, không phải một app/route production.
+
 - Icon thư viện trên thanh đầu mở 67 loại nhân vật, không hiển thị Quản trò/Thẻ trống. Tìm theo tên Việt/Anh, hỗ trợ không dấu, kết hợp lọc phe. Danh sách dọc có ảnh, mô tả và điểm cân bằng từng lá; điểm chưa xác định ghi Không cố định. Tất cả nhân vật có ảnh riêng; các vai chưa có logic được làm mờ, ghi rõ chưa mở và không được chia bài.
 
 - Trình chỉnh bộ bài chỉ hiển thị đúng các lá đang chọn, mỗi bản sao là một ô. Quản trò bấm vào thẻ để đổi lá; chọn xong trở về bộ bài. Mô tả chức năng mặc định thu gọn, bấm để mở. Việc thay lá luôn giữ nguyên số ô và kiểm tra giới hạn số bản sao (không tính lá đang được thay).
@@ -143,6 +150,8 @@ Thứ tự bình minh: vết thương Lực sĩ cũ → Sói → độc → Nữ
 
 Bảng rà soát từng vai, các lỗi đã sửa và quy ước luật dễ nhầm được ghi trong [ROLE_LOGIC_REVIEW.md](./ROLE_LOGIC_REVIEW.md).
 
+Ma trận cặp/bộ ba, mô phỏng 5–24 người, cách chạy audit và tái hiện lỗi theo seed: [TESTING.md](./TESTING.md). `pnpm test:werewolf:matrix` được chạy trong CI; `pnpm test:werewolf:audit` là lượt đầy đủ 28.486 ván.
+
 ```sh
 pnpm dev
 pnpm test:werewolf
@@ -157,6 +166,8 @@ QR luôn dùng origin đang mở trang. QR localhost chỉ dùng trên máy đó
 Triển khai bản này cần build frontend **và restart riêng backend HACHITU** để nạp module mới. Restart làm mất các phòng đang lưu RAM của backend, nên chọn lúc không có ván/phòng đang dùng. Không thay đổi cấu hình hay tiến trình của các website khác.
 
 ## Minh họa và thư viện
+
+Giao diện mobile dùng popup sát đáy màn hình, hỗ trợ vùng an toàn của điện thoại. Phòng chờ dùng avatar gọn, danh sách tên dài tự xuống dòng; bộ lọc phe và các ván lịch sử cuộn ngang. Hiệu ứng lật bài vẫn giữ, còn thẻ người chơi trong phòng chờ và nền popup không chạy hiệu ứng nặng trên mobile.
 
 Ba ảnh `public/werewolf-host/roles.webp`, `public/werewolf-host/basic-extra.webp` và `public/werewolf-host/expansion.webp` được tạo bằng công cụ imagegen tích hợp, không dùng ảnh trích từ bộ bài thương mại. Toàn bộ 67 loại nhân vật có chân dung riêng theo phong cách hoạt hình cổ tích vẽ tay. Prompt và bố cục atlas được lưu trong `public/werewolf-host/ART.md`.
 

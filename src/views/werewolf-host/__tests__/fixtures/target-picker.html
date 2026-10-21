@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Xem thử bộ chọn 24 người · HACHI</title>
+  </head>
+  <body>
+    <div id="preview"></div>
+    <script type="module">
+      import { createApp, h, ref } from 'vue'
+      import TargetPicker from '../../components/TargetPicker.vue'
+      import '/src/assets/main.css'
+      import '../../styles.css'
+      const names = [
+        'Minh Anh',
+        'Nguyễn Huyền Trang',
+        'Hà Chí Tú',
+        'Quang Hải',
+        'Ngọc Ánh',
+        'Bảo Long',
+        'Phương Thảo',
+        'Tuấn Kiệt',
+        'Thanh Hằng',
+        'Đức Anh',
+        'Hoàng Nam',
+        'Hải Yến',
+        'Minh Châu',
+        'Gia Hân',
+        'Quốc Bảo',
+        'Khánh Linh',
+        'Hữu Phước',
+        'Thùy Dương',
+        'Đặng Ngọc Khánh',
+        'Nhật Minh',
+        'Vân Anh',
+        'Thanh Tùng',
+        'Nguyễn Thị Mai Phương',
+        'Lê Hoàng Phúc',
+      ]
+      const players = names.map((name, index) => ({
+        id: `p${index}`,
+        name,
+        avatar: `dicebear:adventurer:${(index + 1).toString(16).padStart(32, '0')}`,
+        seat: index + 1,
+      }))
+      createApp({
+        setup() {
+          const selected = ref([])
+          const confirmed = ref(false)
+          return () =>
+            h('div', { class: 'ww-app' }, [
+              h('header', { class: 'ww-header' }, [
+                h('span', { class: 'ww-brand' }, 'HACHI'),
+                h('span', 'Ma Sói · Xem thử'),
+              ]),
+              h('main', { class: 'ww-game is-choosing', style: 'max-width:620px' }, [
+                h('div', { class: 'phase-heading' }, [
+                  h('span', { class: 'eyebrow' }, 'XEM THỬ · 24 NGƯỜI'),
+                  h('h1', 'Chọn mục tiêu'),
+                ]),
+                h('section', { class: 'phase-content' }, [
+                  h('h2', 'Đến lượt bạn'),
+                  h('p', 'Chọn tối đa hai người. Tìm theo tên hoặc cuộn danh sách.'),
+                  h('div', { class: 'night-action has-targets' }, [
+                    h(TargetPicker, {
+                      players,
+                      selected: selected.value,
+                      limit: 2,
+                      disabled: confirmed.value,
+                      onSelect(id) {
+                        selected.value = selected.value.includes(id)
+                          ? selected.value.filter((value) => value !== id)
+                          : [...selected.value.slice(-1), id]
+                      },
+                    }),
+                    h('div', { class: 'action-submit' }, [
+                      h(
+                        'button',
+                        {
+                          class: 'ww-primary',
+                          disabled: !selected.value.length,
+                          onClick() {
+                            confirmed.value = !confirmed.value
+                          },
+                        },
+                        confirmed.value
+                          ? 'Chọn lại để thử tiếp'
+                          : `Xác nhận ${selected.value.length || ''}`,
+                      ),
+                    ]),
+                  ]),
+                ]),
+              ]),
+            ])
+        },
+      }).mount('#preview')
+    </script>
+  </body>
+</html>

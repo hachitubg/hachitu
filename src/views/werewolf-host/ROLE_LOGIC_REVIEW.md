@@ -1,5 +1,11 @@
 # Rà soát luật các lá bài
 
+## Mở rộng kiểm thử tổ hợp
+
+Đã bổ sung bộ audit tái lập, quét toàn bộ cặp/bộ ba role theo số lá vật lý và 5.000 ván ngẫu nhiên. Chi tiết phạm vi, giới hạn và lệnh chạy nằm trong [TESTING.md](./TESTING.md); báo cáo mới nhất có checksum nguồn tại `server/werewolf/test-results/audit-full.json`.
+
+Tìm được và sửa lỗi: Người nhân bản nhận Sói đau khổ trong chuỗi chết nhưng không chết dù mục tiêu liên kết đã chết. Thêm regression độc lập, xác nhận thất bại trước sửa và đạt sau sửa; không cho ban phước chặn cái chết liên kết. Thêm test Socket.IO thật cho vote đồng thời, phiếu lặp và khôi phục Kẻ tử đạo/Bloody Mary khi đang có lượt.
+
 ## Cập nhật 20/10/2026: bảy vai mở rộng và chuyển pha mới
 
 Hiện có **50 vai có logic**, 17 vai chỉ dùng trong chế độ bộ bài. Bổ sung Kẻ tử đạo, Bloody Mary, Yêu tinh, Người chứng kiến, Sói chiêm bao, Sói tuổi teen, Xác ướp theo JSON chủ dự án cung cấp. README và `guide_vi` nêu rõ những quy ước tương tác khi JSON chưa có chi tiết.

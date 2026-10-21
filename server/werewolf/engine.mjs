@@ -500,6 +500,12 @@ function kill(room, person, reason, killerTeam = 'village') {
         }.`,
       )
     if (clone.role === 'ghost') kill(room, clone, 'trở thành Hồn ma')
+    if (
+      clone.role === 'dire_wolf' &&
+      clone.direTarget &&
+      !room.members.find((p) => p.id === clone.direTarget)?.alive
+    )
+      kill(room, clone, `mất liên kết với ${publicName(room, clone.direTarget)}`, killerTeam)
   }
   const partner = (room.lovers || []).includes(person.id)
     ? room.members.find((p) => p.id !== person.id && room.lovers.includes(p.id))
