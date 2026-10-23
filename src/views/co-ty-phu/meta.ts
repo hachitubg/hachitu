@@ -7,4 +7,5 @@ export default {
   author: 'HACHITU',
   category: 'game',
   showToolbar: false,
+  hidden: true,
 } satisfies PageMeta
