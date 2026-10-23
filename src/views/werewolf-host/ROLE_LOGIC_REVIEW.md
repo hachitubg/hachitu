@@ -1,5 +1,11 @@
 # Rà soát luật các lá bài
 
+## Rà soát 22/10/2026
+
+Chạy lại audit đầy đủ: 28.486 ván đạt (1.229 cặp, 19.799 bộ ba, 5.000 ván ngẫu nhiên), 2.550 lần reset, 7.183 lần mất kết nối giả lập, 65.779 lệnh không hợp lệ bị từ chối. Rà soát thêm selection/confirmation, thứ tự xử lý đêm, quyền xem vai và resume. Không tìm thấy lỗi luật mới trong phạm vi này. 50 vai tự động và 17 vai chỉ chia bài vẫn được phân biệt rõ; không khẳng định 17 vai đó đã có logic tự động.
+
+Sửa giới hạn thao tác Socket.IO: tính theo kết nối, không dùng chung địa chỉ IP vì cả bàn có thể chung Wi-Fi hoặc qua nginx loopback. Thêm regression hai client cùng IP để một client quá giới hạn không chặn client khác tạo phòng. Việc này không thay đổi luật role.
+
 ## Mở rộng kiểm thử tổ hợp
 
 Đã bổ sung bộ audit tái lập, quét toàn bộ cặp/bộ ba role theo số lá vật lý và 5.000 ván ngẫu nhiên. Chi tiết phạm vi, giới hạn và lệnh chạy nằm trong [TESTING.md](./TESTING.md); báo cáo mới nhất có checksum nguồn tại `server/werewolf/test-results/audit-full.json`.

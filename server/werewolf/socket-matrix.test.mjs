@@ -6,6 +6,44 @@ import { Server } from 'socket.io'
 import { io as client } from 'socket.io-client'
 import { registerWerewolf } from './socket.mjs'
 
+test('shared Wi-Fi clients have separate command limits behind the same proxy address', async (t) => {
+  const http = createServer(),
+    io = new Server(http),
+    service = registerWerewolf(io),
+    sockets = []
+  await new Promise((resolve) => http.listen(0, '127.0.0.1', resolve))
+  t.after(async () => {
+    sockets.forEach((s) => s.disconnect())
+    service.close()
+    await new Promise((resolve) => io.close(resolve))
+  })
+  async function connect() {
+    const s = client(`http://127.0.0.1:${http.address().port}/werewolf`, {
+      transports: ['websocket'],
+      forceNew: true,
+      reconnection: false,
+    })
+    sockets.push(s)
+    await new Promise((resolve, reject) => {
+      s.once('connect', resolve)
+      s.once('connect_error', reject)
+    })
+    return s
+  }
+  const noisy = await connect(),
+    other = await connect()
+  const burst = await Promise.all(
+    Array.from({ length: 90 }, () => noisy.emitWithAck('command', { action: 'invalid' })),
+  )
+  assert.ok(burst.some((r) => r.code === 'RATE_LIMIT'))
+  const created = await other.emitWithAck('command', {
+    action: 'create',
+    name: 'Bạn cùng mạng',
+    avatar: 'preset:0',
+  })
+  assert.equal(created.ok, true, created.error)
+})
+
 test('real sockets: simultaneous ballots, Martyr reconnect and dead Mary reconnect stay consistent', async (t) => {
   const http = createServer()
   const io = new Server(http)

@@ -36,7 +36,8 @@ export function registerWerewolf(io) {
           JSON.stringify(request).length > 70000
         )
           throw new Error('Yêu cầu không hợp lệ.')
-        const bucketKey = socket.handshake.address
+        // A whole table can share one Wi-Fi address (and nginx proxies every socket).
+        const bucketKey = socket.id
         const bucket = rate.get(bucketKey) || { at: Date.now(), count: 0 }
         if (Date.now() - bucket.at > 1000) {
           bucket.at = Date.now()
@@ -142,6 +143,7 @@ export function registerWerewolf(io) {
       }
     })
     socket.on('disconnect', () => {
+      rate.delete(socket.id)
       const room = rooms.get(socket.data.room)
       const person = room?.members.find((p) => p.id === socket.data.person)
       if (!person) return

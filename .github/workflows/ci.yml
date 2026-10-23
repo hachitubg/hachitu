@@ -45,5 +45,8 @@ jobs:
       - name: Werewolf pair matrix
         run: pnpm test:werewolf:matrix
 
+      - name: Property game rules and realtime
+        run: pnpm test:property-game
+
       - name: Build
         run: pnpm build
