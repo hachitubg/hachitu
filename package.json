@@ -18,7 +18,7 @@
     "test:werewolf": "node --test server/werewolf/engine.test.mjs server/werewolf/basic.test.mjs server/werewolf/advanced.test.mjs server/werewolf/socket.test.mjs server/werewolf/socket-matrix.test.mjs server/werewolf/simulation.test.mjs server/werewolf/manual-matrix.test.mjs",
     "test:werewolf:matrix": "node server/werewolf/audit.mjs --mode=ci",
     "test:werewolf:audit": "node server/werewolf/audit.mjs --mode=full",
-    "test:property-game": "node --test server/property-game/engine.test.mjs server/property-game/socket.test.mjs",
+    "test:property-game": "node --test server/property-game/engine.test.mjs server/property-game/socket.test.mjs server/property-game/character-renderer.test.mjs server/property-game/poorup-integration.test.mjs server/property-game/bots.test.mjs",
     "build-only": "vite build && node scripts/generate-og-pages.mjs && node scripts/generate-sitemap.mjs",
     "type-check": "vue-tsc --build",
     "lint": "run-s lint:*",

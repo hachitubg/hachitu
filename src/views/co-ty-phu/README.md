@@ -1,5 +1,38 @@
 # HACHI CAPITAL · Cờ Tỷ Phú
 
+## Màn chơi và công trình
+
+Màn chơi dùng chiều cao viewport, tự đo vùng bàn bằng VueUse `useElementSize` để vừa cả desktop/mobile. Chỉ giữ HUD, danh sách quân gọn, bàn cờ và thanh hành động. Tài sản/người chơi/nhật ký/hiển thị mở bằng nút trên thanh công cụ; panel thật được Teleport vào dialog, không nhân đôi logic. Quyết định bắt buộc vẫn mở ở giữa màn hình.
+
+`PropertyBuildings.vue` là artwork vector gốc của HACHITU: 1/2/3/4 căn nhà và một khách sạn có hình khác nhau. Ô đang xây hiển thị công trình theo `Property.level` từ server, không còn chỉ là con số. Khi đổi cấp dùng transition xây/bán; thẻ tài sản có bản xem lớn và thang tiến độ. Xây đều/tối đa 4 nhà rồi khách sạn vẫn giữ luật hiện có. Hiệu ứng theo nút Hiệu ứng, giảm chuyển động khi tắt. Bản xem phát triển công trình ở dev: `/src/views/co-ty-phu/__tests__/fixtures/development.html`; không phải route production và không thay dữ liệu phòng thật.
+
+## Đồ họa, máy và quyết định giữa màn hình
+
+- Dùng trực tiếp 3 cảnh SVG `light`, `summer`, `autumn` và bộ icon Cơ hội/Cộng đồng/nhà tù gốc của Poorup. Nguồn, commit và MIT nằm trong `public/co-ty-phu/poorup-art/README.md`, LICENSE.txt; không còn dùng cảnh thành phố tự vẽ cũ. Chọn khung cảnh trên thiết bị, không thay luật phòng.
+- Chủ phòng bấm **Thêm máy vào bàn** ở phòng chờ, tối đa 6 chỗ tổng. Máy tự sẵn sàng, có nhân vật random không trùng; có thể xóa máy trước ván. Giữ máy trong rematch.
+- Bot chạy phía server, quyết định bằng luật (không gọi AI/API): gieo, mua hoặc đấu giá, trả giá theo ngân sách, xây đều khi đủ bộ màu, chuộc khi dư tiền, xử lý tù, thanh lý/thế chấp khi nợ và phá sản khi không còn cách trả. Bot trả lời giao dịch của người theo giá trị tài sản/tiền, chưa chủ động khởi tạo thương lượng hoặc có chiến thuật như người chơi giỏi.
+- Driver chờ 750ms cho mỗi quyết định và chờ xong presentation của server. Dừng khi có người thật cần thao tác hoặc phòng pause; không điều khiển hộ người. Room đóng/hết hạn thì dọn driver. Rời phòng khi chỉ còn máy ở lobby/ended sẽ đóng room.
+- Mua đất, lượt đấu giá, trả nợ, đề nghị giao dịch, tù và thẻ sự kiện của người đang có lượt mở ở dialog trung tâm sau khi đi xong. Escape không bỏ qua quyết định. Nợ có danh sách tài sản để mở dialog quản lý phía trên; giải quyết xong tự đóng quyết định. Không sao chép logic/bộ nút sidebar: dùng Teleport chuyển cùng panel sang dialog.
+
+## Tích hợp Poorup
+
+Tích hợp trực tiếp các module MIT từ [Poorup](https://github.com/jeremy341/Poorup), ghim commit `f7e5b8209dcac9c4aa7b61a96164c53545805c3e`. Đây là tích hợp module, không nhúng cả website hay thay toàn bộ engine HACHITU. Chi tiết nguồn và giấy phép: `vendor/poorup/README.md`, `vendor/poorup/LICENSE`.
+
+- Backend gọi thật `propertyRules.js` qua `poorup-adapter.mjs` cho xây/bán/thế chấp/chuộc. Bảng tiền thuê Classic và chuyển giao đất thế chấp vẫn theo luật HACHITU đã công bố.
+- `gamePresentation.js` ghi xúc xắc, từng chặng đi và thay đổi tiền bằng kết quả server. Bao gồm qua Khởi hành, lùi ba ô, đi theo thẻ, vào tù.
+- Frontend dùng `clientBoardMotion.js` cùng chính sách timing upstream, nội suy giữa các bước bằng VueUse RAF. Xúc xắc tung trước, nhân vật đi sau. Server chặn lệnh tiếp trong thời gian presentation để không vượt lượt. Refresh dùng elapsed trên đồng hồ server để tiếp tục đúng chặng.
+- Tên tác giả/license giữ nguyên trong vendor. Không chạy bootstrap Poorup hoặc các module tài khoản, AI, thị trường, casino và persistence.
+
+Phần thành phố giữa bàn dùng SVG gốc của Poorup, có 3 cảnh chọn được và icon riêng cho thẻ/nhà tù. Nhân vật vẫn dùng `2d_chars`. Không thêm engine đồ họa/phụ thuộc runtime mới.
+
+## Nhân vật 2D
+
+Nhập tên, random hoặc chỉnh tóc/màu da/biểu cảm/áo/quần/giày/phụ kiện trước khi tạo hoặc vào phòng. Xem xoay 8 hướng và thử đi bộ trong bộ chọn. Có thể chỉnh lại tại phòng chờ; lưu thay đổi hủy sẵn sàng. Server kiểm tra đầy đủ 10 trường cấu hình và từ chối ngoại hình trùng trong phòng, kể cả khác màu tóc khi trọc hoặc màu phụ kiện không có tác dụng. Random tại phòng chờ loại các cấu hình đang có. Không upload ảnh, không gọi API bên ngoài.
+
+Cùng một cấu hình được dùng để vẽ nhân vật toàn thân trong phòng chờ, danh sách người chơi và quân trên bàn cờ; giữ nguyên khi resume hoặc rematch. Nhân vật trên bàn di chuyển theo chặng do Poorup recorder ghi; thử đi bộ dùng RAF, tạm dừng khi trang ẩn. Người chủ động bấm thử đi bộ vẫn được xem chuyển động khi hệ điều hành bật reduced motion; hiệu ứng tự động trên bàn tôn trọng lựa chọn đó.
+
+Renderer [2d_chars](https://github.com/juanpe500/2d_chars), MIT, được ghim commit và đóng gói tại `public/co-ty-phu/vendor/`; có LICENSE và ghi rõ chỉnh sửa wrapper. Chỉ nạp một lần trong SPA, chỉ nhân vật đang đi hoặc bản thử đi bộ vẽ lại tối đa 30fps; nội suy vị trí theo RAF, tự dọn khi unmount. Nút Hiệu ứng lưu lựa chọn trên thiết bị, mặc định theo reduced motion của hệ điều hành; người chơi có thể chủ động bật đầy đủ. Cấu hình/validation dùng chung giữa frontend và backend tại `character-config.mjs`.
+
 App độc lập tại `/co-ty-phu`, 2–6 người, chủ phòng cũng chơi. Bản đồ 40 ô mang tên địa danh Việt Nam, 28 tài sản; hình ảnh bàn cờ và kiến trúc tạo bằng CSS, Iconify, không sao chép hình ảnh/bộ nhận diện thương mại. Không cần tài khoản, không database.
 
 ## Luật và nguồn tham khảo
@@ -34,6 +67,10 @@ Trước khi tạo app đã kiểm tra thư mục `src/views` cả hai dự án,
 - Không có thời gian ép lượt. Mất kết nối tạm dừng cả ván, thời gian tạm dừng không tính vào giới hạn ván. Người rời phải mở lại cùng trình duyệt, cùng origin. Chủ phòng có thể đóng buổi chơi bằng xác nhận hai bước.
 
 ## Cấu trúc để mở rộng
+
+### Màn chơi phối cảnh
+
+Bàn cờ dùng phối cảnh CSS 2.5D góc nghiêng nhẹ, giữ nguyên 40 ô và tọa độ di chuyển hiện có. `BoardGarden.vue` là cảnh SVG tự vẽ (công viên, đài phun nước, cây), không trích xuất đồ họa Business Tour. Các chủ đề thay đổi sắc cảnh; nhà cấp 1–4 và khách sạn vẫn lấy trực tiếp từ trạng thái server. Bảng tài sản, người chơi, lịch sử và hiển thị nằm sau các nút trên thanh công cụ. Không thay đổi luật để mô phỏng Business Tour; đây là hướng trình bày riêng cho HACHI CAPITAL.
 
 - `server/property-game/board.mjs`: dữ liệu tài sản, giá thuê và hiệu ứng thẻ.
 - `server/property-game/engine.mjs`: luật thuần, command transaction, RNG mặc định từ `node:crypto`; nhận RNG kiểm thử.

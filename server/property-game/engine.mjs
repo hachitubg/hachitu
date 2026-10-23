@@ -1,5 +1,15 @@
 import { randomBytes, randomInt } from 'node:crypto'
 import { BOARD, CARDS } from './board.mjs'
+import { propertyEligibility } from './poorup-adapter.mjs'
+import {
+  recordPresentationMovement,
+  withRollPresentation,
+} from '../../vendor/poorup/server/gamePresentation.js'
+import {
+  validateCharacter,
+  randomCharacter,
+  characterKey,
+} from '../../src/views/co-ty-phu/character-config.mjs'
 
 const check = (ok, message) => {
   if (!ok) throw Error(message)
@@ -24,18 +34,24 @@ const shuffle = (array, rng) => {
   }
   return array
 }
-export function player(name, token = 'car') {
+export function player(name, token = 'car', character) {
   check(
     typeof name === 'string' && name.trim().length >= 1 && name.trim().length <= 24,
     'Tên cần từ 1 đến 24 ký tự.',
   )
   check(['car', 'cat', 'ship', 'rocket', 'bike', 'crown'].includes(token), 'Quân cờ không hợp lệ.')
+  const appearance =
+    character === undefined
+      ? randomCharacter(() => randomInt(1000000) / 1000000)
+      : validateCharacter(character)
   return {
     id: randomBytes(12).toString('hex'),
     secret: randomBytes(24).toString('hex'),
     name: name.trim(),
     token,
+    character: appearance,
     connected: true,
+    isBot: false,
     ready: false,
     cash: 1500,
     position: 0,
@@ -45,8 +61,8 @@ export function player(name, token = 'car') {
     bankrupt: false,
   }
 }
-export function createRoom(name, token, now = Date.now()) {
-  const host = player(name, token)
+export function createRoom(name, token, now = Date.now(), character) {
+  const host = player(name, token, character)
   return {
     code: randomBytes(3).toString('hex').toUpperCase(),
     hostId: host.id,
@@ -56,6 +72,8 @@ export function createRoom(name, token, now = Date.now()) {
     turn: 0,
     turnNumber: 0,
     dice: [1, 1],
+    presentation: null,
+    diceRollSequence: 0,
     doubles: 0,
     again: false,
     properties: BOARD.filter((t) => t.price).map((t) => ({
@@ -83,10 +101,17 @@ export function createRoom(name, token, now = Date.now()) {
     pausedMs: 0,
   }
 }
-export function addPlayer(room, name, token) {
+export function addPlayer(room, name, token, character) {
   check(room.phase === 'lobby', 'Ván đã bắt đầu.')
   check(room.players.length < 6, 'Phòng đã đủ 6 người.')
-  const p = player(name, token)
+  const p = player(name, token, character)
+  if (character === undefined) {
+    while (
+      room.players.some((other) => characterKey(other.character) === characterKey(p.character))
+    )
+      p.character = randomCharacter()
+  }
+  requireUniqueCharacter(room, p.character)
   check(
     !room.players.some((other) => other.name.toLocaleLowerCase() === p.name.toLocaleLowerCase()),
     'Tên này đã có trong phòng.',
@@ -94,7 +119,7 @@ export function addPlayer(room, name, token) {
   room.players.push(p)
   room.revision++
   room.players.forEach((other) => {
-    other.ready = false
+    other.ready = other.isBot === true
   })
   return p
 }
@@ -109,6 +134,18 @@ export function netWorth(room, p) {
       0,
     )
   )
+}
+function requireUniqueCharacter(room, character, exceptId = null) {
+  if (
+    room.players.some(
+      (p) => p.id !== exceptId && characterKey(p.character) === characterKey(character),
+    )
+  ) {
+    throw Object.assign(
+      Error('Nhân vật này đã có người chọn. Hãy bấm Ngẫu nhiên hoặc đổi trang phục.'),
+      { code: 'CHARACTER_TAKEN' },
+    )
+  }
 }
 export function rent(room, tileId, dice = 7, special = null) {
   const asset = room.properties.find((p) => p.id === tileId),
@@ -222,6 +259,7 @@ function settle(room, now, rng) {
   room.phase = room.again ? 'roll' : 'end'
 }
 function jail(room, p) {
+  recordPresentationMovement(room, p, 10, { cause: 'jail', teleport: true })
   p.position = 10
   p.jail = true
   p.jailTurns = 0
@@ -232,6 +270,11 @@ function jail(room, p) {
 }
 function move(room, p, steps, now, rng) {
   const target = p.position + steps
+  recordPresentationMovement(room, p, (target + 40) % 40, {
+    steps: Math.abs(steps),
+    direction: steps < 0 ? -1 : 1,
+    cause: steps < 0 ? 'back' : 'move',
+  })
   if (steps > 0 && target >= 40) {
     p.cash += 200
     log(room, `${p.name} qua Khởi hành, nhận 200.`)
@@ -263,6 +306,7 @@ function draw(room, p, kind, now, rng) {
     let steps = 1
     while (BOARD[(p.position + steps) % 40].kind !== card.nearest) steps++
     const target = (p.position + steps) % 40
+    recordPresentationMovement(room, p, target, { steps, cause: 'card' })
     if (p.position + steps >= 40) p.cash += 200
     p.position = target
     land(room, p, now, rng, card.nearest)
@@ -403,8 +447,10 @@ function manage(room, actor, action, id) {
   const a = room.properties.find((p) => p.id === id),
     tile = BOARD[id]
   check(a && a.owner === actor.id, 'Đây không phải tài sản của bạn.')
+  const eligibility = propertyEligibility(room, actor, id)
   const siblings = group(room, tile)
   if (action === 'mortgage') {
+    check(eligibility.mortgage, 'Tài sản chưa đủ điều kiện thế chấp.')
     check(
       !a.mortgaged && !siblings.some((p) => p.level),
       'Bán hết nhà trong nhóm trước khi thế chấp.',
@@ -412,11 +458,16 @@ function manage(room, actor, action, id) {
     a.mortgaged = true
     actor.cash += tile.price / 2
   } else if (action === 'redeem') {
+    check(eligibility.redeem, 'Tài sản chưa đủ điều kiện chuộc.')
     const amount = tile.price / 2 + Math.ceil(tile.price / 20)
     check(a.mortgaged && actor.cash >= amount, `Cần ${amount} để chuộc.`)
     actor.cash -= amount
     a.mortgaged = false
   } else if (action === 'build') {
+    check(
+      eligibility.build,
+      'Cần đủ nhóm màu, xây đều, không có thế chấp và còn công trình trong kho.',
+    )
     check(tile.kind === 'street' && monopoly(room, actor, tile), 'Cần sở hữu đủ nhóm màu.')
     check(!siblings.some((p) => p.mortgaged), 'Nhóm màu có đất thế chấp.')
     check(
@@ -435,6 +486,7 @@ function manage(room, actor, action, id) {
     a.level++
     actor.cash -= tile.houseCost
   } else if (action === 'sell') {
+    check(eligibility.sell, 'Bán nhà đều, từ đất có nhiều nhà nhất.')
     check(
       a.level > 0 && a.level === Math.max(...siblings.map((p) => p.level)),
       'Bán nhà đều, từ đất có nhiều nhà nhất.',
@@ -476,6 +528,28 @@ function apply(room, actor, action, input, now, rng) {
   check(room.expires > now, 'Phòng đã hết hạn sau 24 giờ.')
   check(actor && room.players.includes(actor), 'Phiên chơi không hợp lệ.')
   check(input.revision === room.revision, 'Bàn cờ vừa thay đổi. Hãy thao tác lại.')
+  if (action === 'add-bot') {
+    check(
+      room.phase === 'lobby' && actor.id === room.hostId,
+      'Chỉ chủ phòng được thêm máy ở phòng chờ.',
+    )
+    const names = ['Mây', 'Nắng', 'Gió', 'Mưa', 'Sương', 'Biển']
+    const name =
+      names.map((n) => `Máy ${n}`).find((n) => !room.players.some((p) => p.name === n)) || 'Máy'
+    const bot = addPlayer(room, name, 'rocket')
+    bot.isBot = true
+    bot.ready = true
+    log(room, `${bot.name} đã tham gia bàn chơi.`)
+    return
+  }
+  if (action === 'character') {
+    check(room.phase === 'lobby', 'Chỉ chỉnh nhân vật ở phòng chờ.')
+    const character = validateCharacter(input.character)
+    requireUniqueCharacter(room, character, actor.id)
+    actor.character = character
+    actor.ready = false
+    return
+  }
   if (action === 'ready') {
     check(room.phase === 'lobby', 'Ván đã bắt đầu.')
     actor.ready = !actor.ready
@@ -499,7 +573,7 @@ function apply(room, actor, action, input, now, rng) {
       doubleGo: input.doubleGo,
     }
     room.players.forEach((p) => {
-      p.ready = false
+      p.ready = p.isBot === true
     })
     return
   }
@@ -544,10 +618,12 @@ function apply(room, actor, action, input, now, rng) {
       hostId = room.hostId
     Object.assign(room, createRoom(actor.name, actor.token, now), {
       players: old.map((p) => ({
-        ...player(p.name, p.token),
+        ...player(p.name, p.token, p.character),
         id: p.id,
         secret: p.secret,
         connected: p.connected,
+        isBot: p.isBot === true,
+        ready: p.isBot === true,
       })),
       settings,
       code,
@@ -756,7 +832,24 @@ function apply(room, actor, action, input, now, rng) {
 export function command(room, id, action, input = {}, now = Date.now(), rng = randomInt) {
   const next = structuredClone(room),
     actor = next.players.find((p) => p.id === id)
-  apply(next, actor, action, input, now, rng)
+  const movingPlayer = current(next) || actor
+  check(movingPlayer, 'Không còn người chơi trong phòng.')
+  const previousPosition = movingPlayer.position
+  next.tiles = BOARD
+  next.presentationClock = () => now
+  withRollPresentation(next, movingPlayer, () => {
+    apply(next, actor, action, input, now, rng)
+    if (action === 'roll' || movingPlayer.position !== previousPosition) {
+      next.diceRollSequence = (next.diceRollSequence || 0) + 1
+      next.lastDice = [...next.dice]
+    }
+  })
+  if (next.presentation && next.presentation.id !== room.presentation?.id && action !== 'roll')
+    next.presentation.skipDice = true
+  delete next.tiles
+  delete next.presentationClock
+  delete next.lastDice
+  delete next._activePresentation
   next.revision++
   Object.assign(room, next)
 }
@@ -765,6 +858,7 @@ export function view(room, myId) {
   return {
     ...state,
     myId,
+    serverTime: Date.now(),
     paused: paused(room),
     debt: effects[0] || null,
     board: BOARD,

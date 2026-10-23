@@ -134,7 +134,7 @@ it('property details show rent/mortgage and only owners get management controls'
   const { wrapper, state } = page()
   await wrapper.get('[aria-label="1. Hội An, giá 60"]').trigger('click')
   await flushPromises()
-  expect(wrapper.get('dialog').text()).toContain('Khách sạn')
+  expect(wrapper.get('dialog:not(.decision-dialog)').text()).toContain('Khách sạn')
   expect(wrapper.find('.asset-actions').exists()).toBe(true)
   state.value = { ...state.value, properties: [{ id: 1, owner: 'b', level: 0, mortgaged: false }] }
   await flushPromises()
@@ -148,7 +148,7 @@ it('bankruptcy asks confirmation and does not send on opening', async () => {
   await wrapper.get('.turn-panel .danger').trigger('click')
   await flushPromises()
   expect(send).not.toHaveBeenCalled()
-  await wrapper.get('dialog .danger').trigger('click')
+  await wrapper.get('dialog:not(.decision-dialog) .danger').trigger('click')
   expect(send).toHaveBeenCalledWith('bankrupt', {})
 })
 it('trade recipient can accept exact proposal; unrelated player cannot accept', async () => {
@@ -164,4 +164,39 @@ it('trade recipient can accept exact proposal; unrelated player cannot accept', 
   }
   await flushPromises()
   expect(wrapper.find('.turn-panel .primary').exists()).toBe(false)
+})
+it('required purchase opens only the central action dialog after movement and closes when resolved', async () => {
+  const { wrapper, state, send } = page({ phase: 'buy' })
+  await flushPromises()
+  const decision = wrapper.get('dialog.decision-dialog')
+  expect((decision.element as HTMLDialogElement).open).toBe(true)
+  expect(decision.text()).toContain('Mua tài sản')
+  expect(wrapper.find('.game-sidebar .turn-panel').exists()).toBe(false)
+  state.value = { ...state.value, phase: 'end' }
+  await flushPromises()
+  expect((decision.element as HTMLDialogElement).open).toBe(false)
+  expect(send).not.toHaveBeenCalled()
+})
+it('host can add a machine in the lobby and machines are visibly identified', async () => {
+  const { wrapper, send } = page({ phase: 'lobby' })
+  await wrapper.get('.add-bot').trigger('click')
+  expect(send).toHaveBeenCalledWith('add-bot', {})
+})
+it('property upgrade changes the actual board artwork and large development preview', async () => {
+  const { wrapper, state } = page()
+  await wrapper.get('[aria-label="1. Hội An, giá 60"]').trigger('click')
+  state.value = { ...state.value, properties: [{ id: 1, owner: 'a', level: 3, mortgaged: false }] }
+  await flushPromises()
+  expect(wrapper.get('.property-development').text()).toContain('3 nhà')
+  state.value = { ...state.value, properties: [{ id: 1, owner: 'a', level: 5, mortgaged: false }] }
+  await flushPromises()
+  expect(wrapper.get('.property-development').text()).toContain('Khách sạn')
+})
+it('game information opens via its toolbar rather than occupying the main play area', async () => {
+  const { wrapper } = page()
+  await flushPromises()
+  expect(wrapper.find('.game-sidebar .portfolio').exists()).toBe(false)
+  await wrapper.get('[aria-label="Tài sản của tôi"]').trigger('click')
+  await flushPromises()
+  expect(wrapper.get('dialog:not(.decision-dialog)').text()).toContain('Tài sản của bạn')
 })

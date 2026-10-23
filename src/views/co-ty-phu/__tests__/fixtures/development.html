@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Kiểm tra công trình HACHI CAPITAL</title>
+  </head>
+  <body>
+    <div id="demo"></div>
+    <script type="module">
+      import { createApp, h, ref } from 'vue'
+      import Board from '../../components/GameBoard.vue'
+      import Buildings from '../../components/PropertyBuildings.vue'
+      import { BOARD } from '/server/property-game/board.mjs'
+      import { defaultCharacter } from '../../character-config.mjs'
+      import '/src/assets/main.css'
+      import '../../styles.css'
+      createApp({
+        setup() {
+          const level = ref(1)
+          return () =>
+            h(
+              'div',
+              { class: 'capital-app motion-enabled', style: 'padding:20px;min-height:100dvh' },
+              [
+                h('h1', { style: 'font-size:28px;margin:0 0 12px' }, 'Công trình trên bàn chơi'),
+                h(
+                  'p',
+                  'Bản xem thử dùng đúng các component trong game. Tăng hoặc bán cấp để xem hiệu ứng.',
+                ),
+                h('div', { style: 'display:flex;gap:8px;margin-bottom:16px' }, [
+                  h(
+                    'button',
+                    { onClick: () => (level.value = Math.max(0, level.value - 1)) },
+                    'Bán một cấp',
+                  ),
+                  h(
+                    'button',
+                    { onClick: () => (level.value = Math.min(5, level.value + 1)) },
+                    'Xây một cấp',
+                  ),
+                  h('span', { style: 'padding:12px' }, `Cấp ${level.value}`),
+                ]),
+                h(
+                  'div',
+                  {
+                    style:
+                      'display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;max-width:800px;margin-bottom:20px',
+                  },
+                  [1, 2, 3, 4, 5].map((n) =>
+                    h('div', { class: 'group-coral' }, [
+                      h(Buildings, { level: n }),
+                      h('p', { style: 'text-align:center' }, n === 5 ? 'Khách sạn' : `${n} nhà`),
+                    ]),
+                  ),
+                ),
+                h('div', { style: 'max-width:650px' }, [
+                  h(Board, {
+                    state: {
+                      code: 'DEMO',
+                      myId: 'a',
+                      hostId: 'a',
+                      phase: 'roll',
+                      revision: 1,
+                      turn: 0,
+                      turnNumber: 1,
+                      dice: [3, 4],
+                      board: BOARD,
+                      properties: BOARD.filter((t) => t.price).map((t) => ({
+                        id: t.id,
+                        owner: 'a',
+                        level: t.kind === 'street' ? level.value : 0,
+                        mortgaged: false,
+                      })),
+                      players: [
+                        {
+                          id: 'a',
+                          name: 'Hà Chí Tú',
+                          position: 0,
+                          character: defaultCharacter,
+                          bankrupt: false,
+                          cash: 1500,
+                        },
+                      ],
+                      houses: 32,
+                      hotels: 12,
+                      logs: [],
+                      settings: {},
+                      presentation: null,
+                    },
+                    selected: null,
+                    motionEnabled: true,
+                  }),
+                ]),
+              ],
+            )
+        },
+      }).mount('#demo')
+    </script>
+  </body>
+</html>

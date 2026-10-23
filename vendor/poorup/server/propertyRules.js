@@ -1,0 +1,208 @@
+// Board-tile eligibility rules: what a player may trade, build on, sell
+// from, mortgage, or unmortgage. Pure module: every predicate reads the
+// GameState it is handed (via its own accessor methods) and never mutates.
+// server/property-actions.test.js and server/rent.test.js pin every branch.
+
+function tradeableTileType(tile) {
+  if (tile.type === 'property') return true;
+  if (tile.type === 'utility') return true;
+  if (tile.type === 'railroad') return true;
+  return false;
+}
+
+function tileEncumbered(game, owner, tile) {
+  if (!owner) return false;
+  if (game.isLoanCollateral(owner, tile)) return true;
+  return game.isPlayerContractCollateral(owner, tile);
+}
+
+function tradeableTileUnencumbered(game, tile) {
+  if (tile.mortgaged) return false;
+  if (tile.equityShares?.length) return false;
+  if (tileEncumbered(game, game.getPlayerById(tile.ownerId), tile)) return false;
+  return true;
+}
+
+export function isTradeableTile(game, tile) {
+  if (!tile) return false;
+  if (!tile.ownerId) return false;
+  if (!tradeableTileUnencumbered(game, tile)) return false;
+  if (!tradeableTileType(tile)) return false;
+  return (tile.houseCount || 0) === 0;
+}
+
+function ownedUnmortgagedProperty(game, player, tile) {
+  if (tile.type !== 'property') return false;
+  if (tile.ownerId !== player.id) return false;
+  if (tileEncumbered(game, player, tile)) return false;
+  // tileEncumbered deliberately covers only loan + contract collateral, so an
+  // outstanding equity share needs its own explicit test (as trade and
+  // mortgage each have): building on a part-sold deed costs the owner 100% and
+  // books the holder 100% of the rent.
+  if (tile.equityShares?.length) return false;
+  return !tile.mortgaged;
+}
+
+function buildPreconditionsAllow(game, player, tile) {
+  if (!player) return false;
+  if (!tile) return false;
+  if (game.isConstructionBlocked()) return false;
+  return true;
+}
+
+function buildOwnershipAllows(game, player, tile) {
+  if (!buildPreconditionsAllow(game, player, tile)) return false;
+  return ownedUnmortgagedProperty(game, player, tile);
+}
+
+function buildGroupAllows(game, player, tile, groupTiles) {
+  if (!groupTiles.length) return false;
+  if (!buildingSupplyAllows(game, tile)) return false;
+  if (groupTiles.some(entry => entry.mortgaged)) return false;
+  return evenBuildAllows(game, player, tile, groupTiles);
+}
+
+function buildingSupplyAllows(game, tile) {
+  const level = Math.max(0, Math.min(5, Number(tile?.houseCount) || 0));
+  if (level >= 5) return false;
+  const tiles = Array.isArray(game.tiles) ? game.tiles : [];
+  const houseLimitSetting = game.settings?.houseLimit;
+  const hotelLimitSetting = game.settings?.hotelLimit;
+  const houseLimitValue = Number(houseLimitSetting);
+  const hotelLimitValue = Number(hotelLimitSetting);
+  const unlimitedHouses = houseLimitSetting === 'unlimited';
+  const unlimitedHotels = hotelLimitSetting === 'unlimited';
+  const houseLimit = Number.isFinite(houseLimitValue) ? Math.max(0, Math.floor(houseLimitValue)) : 32;
+  const hotelLimit = Number.isFinite(hotelLimitValue) ? Math.max(0, Math.floor(hotelLimitValue)) : 12;
+  let housesUsed = 0;
+  let hotelsUsed = 0;
+  tiles.forEach(entry => {
+    if (entry?.type !== 'property') return;
+    const count = Math.max(0, Math.min(5, Number(entry.houseCount) || 0));
+    if (count >= 5) hotelsUsed += 1;
+    else housesUsed += count;
+  });
+  if (level === 4) return unlimitedHotels || hotelsUsed < hotelLimit;
+  return unlimitedHouses || housesUsed < houseLimit;
+}
+
+function evenBuildAllows(game, player, tile, groupTiles) {
+  if (!game.settings.evenBuild) return (tile.houseCount || 0) < 5;
+  const houseLevels = groupTiles.map(entry => entry.houseCount || 0);
+  const minLevel = Math.min(...houseLevels);
+  if ((tile.houseCount || 0) !== minLevel) return false;
+  return (tile.houseCount || 0) < 5;
+}
+
+export function canBuildOnTile(game, player, tile) {
+  if (!buildOwnershipAllows(game, player, tile)) return false;
+  if (!game.hasFullSet(player.id, tile.group)) return false;
+  const groupTiles = game.getGroupTiles(tile.group).filter(entry => entry.ownerId === player.id);
+  return buildGroupAllows(game, player, tile, groupTiles);
+}
+
+function evenBuildAllowsSell(game, player, tile, groupTiles) {
+  if (!game.settings.evenBuild) return (tile.houseCount || 0) > 0;
+  const houseLevels = groupTiles.map(entry => entry.houseCount || 0);
+  const maxLevel = Math.max(...houseLevels);
+  if ((tile.houseCount || 0) !== maxLevel) return false;
+  return (tile.houseCount || 0) > 0;
+}
+
+function ownedPropertyTile(game, player, tile) {
+  if (!player) return false;
+  if (!tile) return false;
+  if (tile.type !== 'property') return false;
+  if (tile.ownerId !== player.id) return false;
+  // Selling liquidates the owner's half of a partly-sold deed, so sell needs
+  // the same security parity as mortgage: no loan/contract collateral and no
+  // outstanding equity share.
+  if (tileEncumbered(game, player, tile)) return false;
+  return !tile.equityShares?.length;
+}
+
+function sellGroupTiles(game, player, tile) {
+  return game.getGroupTiles(tile.group).filter(entry => entry.ownerId === player.id);
+}
+
+export function canSellFromTile(game, player, tile) {
+  if (!ownedPropertyTile(game, player, tile)) return false;
+  const groupTiles = sellGroupTiles(game, player, tile);
+  if (!groupTiles.length) return false;
+  return evenBuildAllowsSell(game, player, tile, groupTiles);
+}
+
+function mortgageBlockedByEvent(game) {
+  if (game.globalEventActive('credit-freeze')) return true;
+  if (game.globalEventActive('bank-run')) return true;
+  return Boolean(game.activeEventEffects().mortgagesBlocked);
+}
+
+function mortgageableTileType(tile) {
+  if (tile.type === 'property') return true;
+  if (tile.type === 'utility') return true;
+  if (tile.type === 'railroad') return true;
+  return false;
+}
+
+function tileEncumberedForOwner(game, player, tile) {
+  if (game.isLoanCollateral(player, tile)) return true;
+  return game.isPlayerContractCollateral(player, tile);
+}
+
+function groupHasBuildings(game, player, tile) {
+  if (tile.type !== 'property') return false;
+  const groupTiles = game.getGroupTiles(tile.group).filter(entry => entry.ownerId === player.id);
+  return groupTiles.some(entry => (entry.houseCount || 0) > 0);
+}
+
+function mortgageOwnershipAllows(game, player, tile) {
+  if (!player) return false;
+  if (!tile) return false;
+  if (tile.ownerId !== player.id) return false;
+  return Boolean(game.settings.mortgage);
+}
+
+function mortgageSecurityAllows(game, player, tile) {
+  if (mortgageBlockedByEvent(game)) return false;
+  if (tileEncumberedForOwner(game, player, tile)) return false;
+  return !tile.equityShares?.length;
+}
+
+function mortgageTileShapeAllows(game, player, tile) {
+  if (!mortgageableTileType(tile)) return false;
+  if ((tile.houseCount || 0) > 0) return false;
+  if (tile.mortgaged) return false;
+  return !groupHasBuildings(game, player, tile);
+}
+
+export function canMortgageTile(game, player, tile) {
+  if (!mortgageOwnershipAllows(game, player, tile)) return false;
+  if (!mortgageSecurityAllows(game, player, tile)) return false;
+  if (!mortgageTileShapeAllows(game, player, tile)) return false;
+  return true;
+}
+
+function unmortgageFrozen(game) {
+  if (game.globalEventActive('housing-bubble')) return true;
+  if (game.globalEventActive('credit-freeze')) return true;
+  if (game.globalEventActive('bank-run')) return true;
+  // Effects fallback: during a combination event the merged effect set
+  // carries mortgagesBlocked from whichever parent fired into the combo,
+  // while the sibling ID gates above may have gone dark. Mirror the
+  // mortgageBlockedByEvent fallback so both directions stay frozen.
+  return Boolean(game.activeEventEffects().mortgagesBlocked);
+}
+
+function unmortgageOwnershipAllows(player, tile) {
+  if (!player) return false;
+  if (!tile) return false;
+  if (tile.ownerId !== player.id) return false;
+  return tile.mortgaged;
+}
+
+export function canUnmortgageTile(game, player, tile) {
+  if (!unmortgageOwnershipAllows(player, tile)) return false;
+  if (unmortgageFrozen(game)) return false;
+  return !game.isPlayerContractCollateral(player, tile);
+}

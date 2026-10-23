@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "ignorePatterns": ["public/werewolf-host/vendor/**"],
+  "ignorePatterns": ["public/werewolf-host/vendor/**", "public/co-ty-phu/vendor/**", "vendor/poorup/**", ".research/**"],
   "plugins": ["eslint", "typescript", "unicorn", "oxc", "vue", "vitest"],
   "env": {
     "browser": true

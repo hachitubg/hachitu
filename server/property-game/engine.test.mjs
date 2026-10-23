@@ -2,6 +2,70 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createRoom, addPlayer, command, view, current, rent, netWorth } from './engine.mjs'
 import { BOARD, CARDS } from './board.mjs'
+import {
+  defaultCharacter,
+  validateCharacter,
+  characterKey,
+  randomCharacter,
+} from '../../src/views/co-ty-phu/character-config.mjs'
+
+test('character validation rejects forged fields/ranges and canonicalizes hidden color differences', () => {
+  assert.deepEqual(validateCharacter(defaultCharacter), defaultCharacter)
+  for (const invalid of [
+    null,
+    {},
+    { ...defaultCharacter, skin: -1 },
+    { ...defaultCharacter, hairStyle: 11 },
+    { ...defaultCharacter, shirt: 0.5 },
+    { ...defaultCharacter, customShirt: 'url(x)' },
+  ])
+    assert.throws(() => validateCharacter(invalid))
+  assert.equal(
+    characterKey({ ...defaultCharacter, hairStyle: 3, hair: 0 }),
+    characterKey({ ...defaultCharacter, hairStyle: 3, hair: 5 }),
+  )
+  assert.equal(
+    characterKey({ ...defaultCharacter, accessory: 0, accessoryColor: 0 }),
+    characterKey({ ...defaultCharacter, accessory: 0, accessoryColor: 5 }),
+  )
+  for (let n = 0; n < 100; n++) {
+    const c = randomCharacter()
+    assert.deepEqual(validateCharacter(c), c)
+  }
+})
+
+test('lobby rejects duplicate characters, editing resets readiness, play/rematch preserve appearance', () => {
+  const r = createRoom('An', 'car', Date.now(), defaultCharacter)
+  const before = structuredClone(r)
+  assert.throws(
+    () => addPlayer(r, 'Bình', 'cat', defaultCharacter),
+    (e) => e.code === 'CHARACTER_TAKEN',
+  )
+  assert.deepEqual(r, before)
+  const second = { ...defaultCharacter, shirt: 1 }
+  addPlayer(r, 'Bình', 'cat', second)
+  r.players.forEach((p) => {
+    p.ready = true
+  })
+  const updated = { ...defaultCharacter, hairStyle: 5, shirt: 3 }
+  act(r, 'character', { character: updated }, r.hostId)
+  assert.equal(r.players[0].ready, false)
+  assert.deepEqual(r.players[0].character, updated)
+  assert.throws(
+    () => act(r, 'character', { character: second }, r.hostId),
+    (e) => e.code === 'CHARACTER_TAKEN',
+  )
+  r.players.forEach((p) => {
+    p.ready = true
+  })
+  act(r, 'start')
+  assert.deepEqual(view(r, r.hostId).players[0].character, updated)
+  assert.throws(() => act(r, 'character', { character: defaultCharacter }, r.hostId))
+  act(r, 'surrender')
+  act(r, 'rematch', {}, r.hostId)
+  assert.deepEqual(r.players[0].character, updated)
+  assert.deepEqual(r.players[1].character, second)
+})
 
 function setup(count = 3) {
   const room = createRoom('Chủ bàn', 'car')

@@ -1,11 +1,22 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, onScopeDispose } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import { Icon } from '@iconify/vue'
-import { useClipboard, useEventListener } from '@vueuse/core'
+import {
+  useClipboard,
+  useEventListener,
+  useLocalStorage,
+  usePreferredReducedMotion,
+  useTimestamp,
+  useElementSize,
+} from '@vueuse/core'
 import { usePropertyRoom } from './composables/usePropertyRoom'
 import GameBoard from './components/GameBoard.vue'
-import { money, tokenIcon, tokens } from './types'
+import CharacterEditor from './components/CharacterEditor.vue'
+import CharacterSprite from './components/CharacterSprite.vue'
+import PropertyBuildings from './components/PropertyBuildings.vue'
+import { randomCharacter } from './character-config.mjs'
+import { money } from './types'
 import type { Input, Property, Settings } from './types'
 import './styles.css'
 
@@ -13,11 +24,17 @@ const { state, me, connected, busy, error, send, reconnect } = usePropertyRoom()
 const route = useRoute()
 const name = ref(''),
   roomCode = ref(typeof route.query.room === 'string' ? route.query.room : '')
-const joining = ref(!!roomCode.value),
-  token = ref('car')
+const joining = ref(!!roomCode.value)
+const character = ref(randomCharacter())
 const selected = ref<number | null>(null),
   tab = ref<'assets' | 'players' | 'log'>('assets')
 const zoomed = ref(false)
+const boardViewport = ref<HTMLElement>()
+const { width: viewportWidth, height: viewportHeight } = useElementSize(boardViewport)
+const boardFit = computed(
+  () =>
+    `${Math.max(80, Math.floor(Math.min(viewportWidth.value / 1.12, viewportHeight.value / 0.94)))}px`,
+)
 const inspectId = ref(0)
 const dialog = ref<HTMLDialogElement>(),
   modal = ref('')
@@ -34,16 +51,80 @@ const tradeTo = ref(''),
   giveCash = ref(0),
   receiveCash = ref(0)
 const { copy, copied } = useClipboard()
+const visualBusy = ref(false)
+const reducedMotion = usePreferredReducedMotion()
+const motionEnabled = useLocalStorage('hachitu:capital:motion', reducedMotion.value !== 'reduce')
+const boardTheme = useLocalStorage('hachitu:capital:theme', 'light')
+const decisionDialog = ref<HTMLDialogElement>()
+const decisionMount = ref<HTMLElement>()
+const portfolioMount = ref<HTMLElement>()
+const viewMount = ref<HTMLElement>()
+const clock = useTimestamp({ interval: 100 })
+const serverOffset = ref(0)
+watch(
+  () => state.value?.serverTime,
+  (value) => {
+    if (value) serverOffset.value = value - Date.now()
+  },
+  { immediate: true },
+)
+const presentationRunning = computed(
+  () =>
+    visualBusy.value ||
+    (state.value?.presentation?.readyAt || 0) > clock.value + serverOffset.value,
+)
+const seenCard = ref('')
+const cardKey = computed(
+  () => `${state.value?.code}:${state.value?.presentation?.id}:${state.value?.card?.text}`,
+)
+const pendingCard = computed(
+  () => !!state.value?.card && myTurn.value && cardKey.value !== seenCard.value,
+)
+const requiredDecision = computed(() => {
+  const s = state.value
+  if (
+    !s ||
+    s.phase === 'lobby' ||
+    s.phase === 'ended' ||
+    s.paused ||
+    presentationRunning.value ||
+    me.value?.bankrupt
+  )
+    return false
+  return (
+    pendingCard.value ||
+    (s.phase === 'buy' && myTurn.value) ||
+    (s.phase === 'debt' && debtMine.value) ||
+    s.auction?.actor === me.value?.id ||
+    s.trade?.to === me.value?.id ||
+    (s.phase === 'roll' && myTurn.value && me.value?.jail)
+  )
+})
 const active = computed(() => state.value?.players[state.value.turn])
 const isHost = computed(() => state.value?.hostId === me.value?.id)
 const myTurn = computed(() => active.value?.id === me.value?.id)
-const blocked = computed(() => busy.value || !connected.value || !!state.value?.paused)
+const blocked = computed(
+  () => busy.value || !connected.value || !!state.value?.paused || presentationRunning.value,
+)
 const tile = computed(() => state.value?.board.find((t) => t.id === selected.value))
 const asset = computed(() => state.value?.properties.find((a) => a.id === selected.value))
 const myAssets = computed(
   () => state.value?.properties.filter((a) => a.owner === me.value?.id) || [],
 )
 const debtMine = computed(() => !!me.value && state.value?.debt?.from === me.value.id)
+watch(
+  [requiredDecision, decisionDialog],
+  () => {
+    const d = decisionDialog.value
+    if (!d) return
+    if (requiredDecision.value && !d.open) d.showModal()
+    else if (!requiredDecision.value && d.open) d.close()
+  },
+  { flush: 'post' },
+)
+onScopeDispose(() => {
+  decisionDialog.value?.close()
+})
 const mayManage = computed(
   () =>
     !blocked.value &&
@@ -63,6 +144,8 @@ const actionTitle = computed(() => {
   const s = state.value
   if (!s) return ''
   if (s.paused) return 'Tạm dừng kết nối'
+  if (presentationRunning.value) return 'Đang thực hiện lượt đi…'
+  if (pendingCard.value) return s.card?.kind === 'chance' ? 'Thẻ Cơ hội' : 'Thẻ Cộng đồng'
   if (s.trade) return 'Đang thương lượng'
   if (s.phase === 'debt') return `${personName(s.debt?.from)} cần thanh toán`
   if (s.phase === 'auction') return `Đấu giá ${propertyName(s.auction!.tileId)}`
@@ -115,9 +198,16 @@ useEventListener(dialog, 'close', () => {
 async function enter() {
   await send(joining.value ? 'join' : 'create', {
     name: name.value,
-    token: token.value,
+    character: character.value,
     code: roomCode.value,
   })
+}
+function editCharacter() {
+  if (me.value?.character) character.value = { ...me.value.character }
+  modal.value = 'character'
+}
+async function saveCharacter() {
+  if (await send('character', { character: character.value })) modal.value = ''
 }
 async function run(action: string, input: Input = {}) {
   const ok = await send(action, input)
@@ -126,6 +216,10 @@ async function run(action: string, input: Input = {}) {
 function showTile(id: number) {
   selected.value = id
   modal.value = 'tile'
+}
+function openPanel(value: 'assets' | 'players' | 'log') {
+  tab.value = value
+  modal.value = 'portfolio'
 }
 function tradable(a: Property) {
   return !state.value?.properties.some(
@@ -158,7 +252,13 @@ function outside(event: MouseEvent) {
 </script>
 
 <template>
-  <div class="capital-app">
+  <div
+    class="capital-app"
+    :class="{
+      'motion-enabled': motionEnabled,
+      'in-game': state && !['lobby'].includes(state.phase),
+    }"
+  >
     <header class="capital-header">
       <RouterLink to="/" aria-label="Về trang chủ" class="icon-button"
         ><Icon icon="lucide:arrow-left"
@@ -212,20 +312,21 @@ function outside(event: MouseEvent) {
       </section>
       <form class="capital-form" @submit.prevent="enter">
         <div class="mode-tabs">
-          <button type="button" :aria-pressed="!joining" @click="joining = false">
-            Tạo bàn mới</button
+          <button type="button" :aria-pressed="!joining" @click="joining = false">Tạo phòng</button
           ><button type="button" :aria-pressed="joining" @click="joining = true">Vào phòng</button>
         </div>
-        <span class="kicker">CHỌN CHỖ CỦA BẠN</span>
-        <h2>{{ joining ? 'Bạn bè đang chờ.' : 'Mở bàn, lên đường.' }}</h2>
-        <label for="capital-name">Tên người chơi</label
+        <span class="kicker">{{
+          joining ? 'MỖI NGƯỜI MỘT ĐIỆN THOẠI' : 'MỜI BẠN BÈ CÙNG CHƠI'
+        }}</span>
+        <h2>{{ joining ? 'Một chỗ quanh bàn' : 'Mở một buổi chơi' }}</h2>
+        <label for="capital-name">Tên của bạn</label
         ><input
           id="capital-name"
           v-model="name"
           maxlength="24"
           required
           autocomplete="nickname"
-          placeholder="Bạn muốn được gọi là gì?"
+          placeholder="Hãy nhập tên"
         />
         <template v-if="joining"
           ><label for="capital-code">Mã phòng</label
@@ -234,24 +335,13 @@ function outside(event: MouseEvent) {
             v-model="roomCode"
             maxlength="6"
             required
-            placeholder="VD: A1B2C3"
+            placeholder="6 ký tự trên máy chủ phòng"
             autocapitalize="characters"
         /></template>
-        <label>Quân cờ của bạn</label>
-        <div class="token-options">
-          <button
-            v-for="t in tokens"
-            :key="t.id"
-            type="button"
-            :aria-pressed="token === t.id"
-            :aria-label="t.name"
-            @click="token = t.id"
-          >
-            <Icon :icon="t.icon" /><span>{{ t.name }}</span>
-          </button>
-        </div>
+        <CharacterEditor v-model="character" :disabled="busy" :name="name" />
         <button class="primary wide" :disabled="busy || !connected || !name.trim()" type="submit">
-          {{ joining ? 'Vào bàn chơi' : 'Tạo phòng chơi' }}<Icon icon="lucide:arrow-up-right" />
+          {{ busy ? 'Đang mở cửa…' : joining ? 'Vào phòng chơi' : 'Tạo phòng chơi'
+          }}<Icon icon="lucide:arrow-right" />
         </button>
         <p class="footnote">
           Không cần tài khoản. Tiền trong game là tiền giả lập. Phòng giữ tối đa 24 giờ trong buổi
@@ -276,6 +366,9 @@ function outside(event: MouseEvent) {
             me?.ready ? 'Đã sẵn sàng · Nhấn để hủy' : 'Tôi đã sẵn sàng'
           }}
         </button>
+        <button class="wide" :disabled="blocked" @click="editCharacter">
+          <Icon icon="lucide:shirt" />Chỉnh nhân vật của tôi
+        </button>
         <button
           v-if="isHost"
           class="primary wide"
@@ -297,19 +390,39 @@ function outside(event: MouseEvent) {
         <div class="section-line">
           <span>// QUANH BÀN</span><b>{{ state.players.length }}/6</b>
         </div>
+        <button
+          v-if="isHost"
+          class="primary wide add-bot"
+          :disabled="blocked || state.players.length >= 6"
+          @click="run('add-bot')"
+        >
+          <Icon icon="lucide:bot" />Thêm máy vào bàn<small>{{ state.players.length }}/6 chỗ</small>
+        </button>
         <div class="lobby-roster">
           <article v-for="(p, i) in state.players" :key="p.id">
-            <span class="player-token" :class="`player-${i}`"
-              ><Icon :icon="tokenIcon(p.token)"
-            /></span>
+            <CharacterSprite
+              class="roster-character"
+              :class="`player-${i}`"
+              :character="p.character"
+              :name="p.name"
+            />
             <div>
-              <strong>{{ p.name }}</strong
+              <strong>{{ p.name }}<Icon v-if="p.isBot" icon="lucide:bot" /></strong
               ><small
                 >{{ p.id === state.hostId ? 'Chủ phòng · ' : ''
                 }}{{ !p.connected ? 'Mất kết nối' : p.ready ? 'Sẵn sàng' : 'Đang chuẩn bị' }}</small
               >
             </div>
             <Icon v-if="p.ready" icon="lucide:check" />
+            <button
+              v-if="isHost && p.isBot"
+              :disabled="busy"
+              class="remove-bot"
+              :aria-label="`Xóa ${p.name}`"
+              @click="run('kick', { id: p.id })"
+            >
+              <Icon icon="lucide:x" />
+            </button>
           </article>
         </div>
         <form class="rule-config" @submit.prevent="run('settings', settings)">
@@ -354,13 +467,24 @@ function outside(event: MouseEvent) {
       </section>
     </main>
 
-    <main v-else class="capital-game">
+    <main v-else class="capital-game focus-game">
       <div class="game-topline">
         <span class="kicker">PHÒNG {{ state.code }} · LƯỢT {{ state.turnNumber }}</span
         ><strong
           >{{ me?.name }} <span>{{ money(me?.cash || 0) }}</span></strong
         >
       </div>
+      <nav class="game-tools" aria-label="Bảng thông tin trò chơi">
+        <button @click="openPanel('assets')" aria-label="Tài sản của tôi">
+          <Icon icon="lucide:landmark" /><span>Tài sản</span></button
+        ><button @click="openPanel('players')" aria-label="Danh sách người chơi">
+          <Icon icon="lucide:users" /><span>Người chơi</span></button
+        ><button @click="openPanel('log')" aria-label="Nhật ký ván chơi">
+          <Icon icon="lucide:scroll-text" /><span>Nhật ký</span></button
+        ><button @click="modal = 'view'" aria-label="Cài đặt hiển thị">
+          <Icon icon="lucide:sliders-horizontal" /><span>Hiển thị</span>
+        </button>
+      </nav>
       <section v-if="state.paused" class="capital-notice">
         Chờ
         {{
@@ -373,32 +497,72 @@ function outside(event: MouseEvent) {
       </section>
       <div class="game-layout">
         <section class="board-column">
-          <div class="board-viewport" :class="{ zoomed }">
-            <GameBoard :state="state" :selected="selected" @select="showTile" />
+          <div
+            ref="boardViewport"
+            class="board-viewport"
+            :class="{ zoomed }"
+            :style="{ '--board-fit': boardFit }"
+          >
+            <GameBoard
+              :state="state"
+              :selected="selected"
+              :motion-enabled="motionEnabled"
+              :theme="boardTheme"
+              @select="showTile"
+              @presenting="visualBusy = $event"
+            />
           </div>
-          <div class="board-legend">
-            <span>Chạm ô để xem tài sản</span
-            ><span>{{
-              state.settings.timeLimit
-                ? `Ván ${state.settings.timeLimit} phút`
-                : 'Đến người cuối cùng'
-            }}</span>
-          </div>
-          <div class="board-inspector">
-            <button
-              class="icon-button"
-              :aria-pressed="zoomed"
-              :aria-label="zoomed ? 'Thu nhỏ bàn cờ' : 'Phóng to bàn cờ'"
-              @click="zoomed = !zoomed"
+          <div class="hidden-board-tools">
+            <Teleport :to="viewMount || 'body'" :disabled="!viewMount"
+              ><div class="view-settings">
+                <div class="board-legend">
+                  <span>Chạm ô để xem tài sản</span
+                  ><span>{{
+                    state.settings.timeLimit
+                      ? `Ván ${state.settings.timeLimit} phút`
+                      : 'Đến người cuối cùng'
+                  }}</span>
+                </div>
+                <button
+                  class="motion-toggle"
+                  :aria-pressed="motionEnabled"
+                  @click="motionEnabled = !motionEnabled"
+                >
+                  <Icon icon="lucide:clapperboard" />Hiệu ứng: {{ motionEnabled ? 'Bật' : 'Tắt'
+                  }}<small>Chuyển động nhân vật và xúc xắc</small>
+                </button>
+                <div class="board-inspector">
+                  <button
+                    class="icon-button"
+                    :aria-pressed="zoomed"
+                    :aria-label="zoomed ? 'Thu nhỏ bàn cờ' : 'Phóng to bàn cờ'"
+                    @click="zoomed = !zoomed"
+                  >
+                    <Icon :icon="zoomed ? 'lucide:zoom-out' : 'lucide:zoom-in'" />
+                  </button>
+                  <select v-model.number="inspectId" aria-label="Chọn ô để xem chi tiết">
+                    <option v-for="t in state.board" :key="t.id" :value="t.id">
+                      {{ t.id }} · {{ t.name }}
+                    </option>
+                  </select>
+                  <button @click="showTile(inspectId)">Xem ô</button>
+                </div>
+                <label class="theme-selector"
+                  >Khung cảnh<select v-model="boardTheme">
+                    <option value="light">Phố ban mai</option>
+                    <option value="summer">Bến cảng mùa hè</option>
+                    <option value="autumn">Phố mùa thu</option>
+                  </select></label
+                >
+                <a
+                  class="art-credit"
+                  href="/co-ty-phu/poorup-art/LICENSE.txt"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  >Đồ họa: Poorup · jeremy341 · MIT</a
+                >
+              </div></Teleport
             >
-              <Icon :icon="zoomed ? 'lucide:zoom-out' : 'lucide:zoom-in'" />
-            </button>
-            <select v-model.number="inspectId" aria-label="Chọn ô để xem chi tiết">
-              <option v-for="t in state.board" :key="t.id" :value="t.id">
-                {{ t.id }} · {{ t.name }}
-              </option>
-            </select>
-            <button @click="showTile(inspectId)">Xem ô</button>
           </div>
           <div class="player-strip">
             <button
@@ -407,246 +571,312 @@ function outside(event: MouseEvent) {
               :class="{ active: active?.id === p.id, eliminated: p.bankrupt }"
               @click="tab = 'players'"
             >
-              <span class="player-token" :class="`player-${i}`"
-                ><Icon :icon="tokenIcon(p.token)" /></span
-              ><span
+              <CharacterSprite
+                class="strip-character"
+                :class="`player-${i}`"
+                :character="p.character"
+                :name="p.name"
+              /><span
                 >{{ p.name }}<b>{{ p.bankrupt ? 'Phá sản' : money(p.cash) }}</b></span
               >
             </button>
           </div>
         </section>
         <aside class="game-sidebar">
-          <section class="turn-panel" aria-live="polite">
-            <span class="kicker">{{ myTurn ? 'QUYẾT ĐỊNH CỦA BẠN' : 'CÙNG THEO DÕI' }}</span>
-            <h2>{{ actionTitle }}</h2>
-            <template v-if="state.phase === 'ended'"
-              ><Icon icon="lucide:trophy" class="victory-icon" />
-              <p>
-                {{
-                  state.winnerIds.length
-                    ? `${state.winnerIds.map(personName).join(' & ')} chiến thắng!`
-                    : 'Không còn người có khả năng thanh toán. Ván kết thúc không có người thắng.'
-                }}
-              </p>
-              <button
-                v-if="isHost"
-                class="primary wide"
-                :disabled="blocked"
-                @click="run('rematch')"
+          <Teleport :to="decisionMount || 'body'" :disabled="!requiredDecision || !decisionMount">
+            <section class="turn-panel" aria-live="polite">
+              <span class="kicker">{{ myTurn ? 'QUYẾT ĐỊNH CỦA BẠN' : 'CÙNG THEO DÕI' }}</span>
+              <h2>{{ actionTitle }}</h2>
+              <div
+                v-if="state.phase === 'buy' && !pendingCard"
+                class="decision-property"
+                :class="`group-${state.board[active?.position || 0]?.group || 'none'}`"
               >
-                Mở ván mới
-              </button></template
-            >
-            <template v-else-if="state.trade"
-              ><p>
-                {{ personName(state.trade.from) }} đề nghị trao đổi với
-                {{ personName(state.trade.to) }}.
-              </p>
-              <div class="trade-summary">
-                <p>
-                  <b>Bên đề nghị đưa:</b>
-                  {{ state.trade.give.map(propertyName).join(', ') || 'Không có đất' }} +
-                  {{ money(state.trade.giveCash) }}
-                </p>
-                <p>
-                  <b>Đổi lấy:</b>
-                  {{ state.trade.take.map(propertyName).join(', ') || 'Không có đất' }} +
-                  {{ money(state.trade.receiveCash) }}
-                </p>
-                <small
-                  >Nhận đất thế chấp: trả ngay 10% giá thế chấp cho ngân hàng, giữ nguyên thế
-                  chấp.</small
-                >
+                <Icon icon="lucide:building-2" /><strong>{{
+                  propertyName(active?.position || 0)
+                }}</strong
+                ><small>Giá mua {{ money(state.board[active?.position || 0]?.price || 0) }}</small>
               </div>
-              <button
-                v-if="state.trade.to === me?.id"
-                class="primary wide"
-                :disabled="blocked"
-                @click="run('trade-reply', { accept: true })"
-              >
-                Chấp nhận trao đổi</button
-              ><button
-                v-if="[state.trade.from, state.trade.to].includes(me?.id || '')"
-                class="wide"
-                :disabled="busy || !connected"
-                @click="run('cancel-trade')"
-              >
-                {{ state.trade.to === me?.id ? 'Từ chối' : 'Hủy đề nghị' }}
-              </button></template
-            >
-            <template v-else-if="state.phase === 'debt'"
-              ><p>
-                {{ state.debt?.reason }} · Cần trả <b>{{ money(state.debt?.amount || 0) }}</b> cho
-                {{ personName(state.debt?.to) }}.
-              </p>
-              <p v-if="debtMine">
-                Bạn có {{ money(me?.cash || 0) }}. Chọn tài sản để bán nhà, thế chấp hoặc thương
-                lượng.
-              </p>
-              <button v-if="debtMine" class="wide" @click="openTrade" :disabled="blocked">
-                Trao đổi để trả nợ</button
-              ><button
-                v-if="debtMine"
-                class="danger wide"
-                @click="modal = 'bankrupt'"
-                :disabled="blocked"
-              >
-                Tuyên bố phá sản…
-              </button></template
-            >
-            <template v-else-if="state.auction"
-              ><p>
-                Giá cao nhất <b>{{ money(state.auction.high) }}</b> ·
-                {{ personName(state.auction.bidder) }}
-              </p>
-              <p>
-                Đến lượt {{ personName(state.auction.actor) }}. Bỏ lượt nghĩa là rút khỏi phiên đấu
-                giá này.
-              </p>
-              <form
-                v-if="state.auction.actor === me?.id"
-                @submit.prevent="run('bid', { amount: bid })"
-              >
-                <label for="bid-value">Giá bạn trả</label
-                ><input
-                  id="bid-value"
-                  v-model.number="bid"
-                  type="number"
-                  :min="state.auction.high + 1"
-                  :max="me?.cash"
-                  step="1"
-                  required
-                /><button class="primary wide" :disabled="blocked">Trả giá</button
-                ><button type="button" class="wide" :disabled="blocked" @click="run('pass')">
-                  Rút khỏi đấu giá
-                </button>
-              </form></template
-            >
-            <template v-else-if="state.phase === 'buy'"
-              ><p>
-                {{ propertyName(active?.position || 0) }} · Giá
-                {{ money(state.board[active?.position || 0]?.price || 0) }}
-              </p>
-              <template v-if="myTurn"
-                ><button
-                  class="primary wide"
-                  :disabled="
-                    blocked || (me?.cash || 0) < (state.board[active?.position || 0]?.price || 0)
-                  "
-                  @click="run('buy')"
-                >
-                  Mua tài sản</button
-                ><button class="wide" :disabled="blocked" @click="run('auction')">
-                  Đưa ra đấu giá
+              <template v-if="pendingCard && !presentationRunning"
+                ><img
+                  class="decision-art"
+                  :src="`/co-ty-phu/poorup-art/icons/${state.card?.kind === 'chance' ? 'surprise' : 'treasure-chest'}.svg`"
+                  alt=""
+                />
+                <p>{{ state.card?.text }}</p>
+                <button class="primary wide" @click="seenCard = cardKey">
+                  Đã hiểu · Tiếp tục
                 </button></template
-              ></template
-            >
-            <template v-else-if="myTurn && state.phase === 'roll'"
-              ><p v-if="me?.jail">
-                Đang ở tù · Đã thử {{ me.jailTurns }}/3 lần. Gieo đôi để ra tù; lần thứ ba phải trả
-                50.
-              </p>
-              <button class="primary roll-button wide" :disabled="blocked" @click="run('roll')">
-                <Icon icon="lucide:dices" />{{ me?.jail ? 'Thử gieo đôi' : 'Gieo xúc xắc' }}
-              </button>
-              <div v-if="me?.jail" class="button-row">
-                <button :disabled="blocked || me.cash < 50" @click="run('bail')">
-                  Trả 50 để ra tù</button
-                ><button v-if="me.jailCards" :disabled="blocked" @click="run('jail-card')">
-                  Dùng giấy miễn tù
-                </button>
-              </div></template
-            >
-            <button
-              v-else-if="myTurn && state.phase === 'end'"
-              class="primary wide"
-              :disabled="blocked"
-              @click="run('end')"
-            >
-              Kết thúc lượt<Icon icon="lucide:arrow-right" />
-            </button>
-            <p v-else class="footnote">Theo dõi bàn cờ, xem tài sản và chuẩn bị nước đi của bạn.</p>
-            <div v-if="state.card" class="event-card">
-              <Icon :icon="state.card.kind === 'chance' ? 'lucide:sparkles' : 'lucide:gift'" />
-              <p>{{ state.card.text }}</p>
-            </div>
-          </section>
-          <section class="portfolio">
-            <div class="mode-tabs">
-              <button :aria-pressed="tab === 'assets'" @click="tab = 'assets'">Tài sản</button
-              ><button :aria-pressed="tab === 'players'" @click="tab = 'players'">Người chơi</button
-              ><button :aria-pressed="tab === 'log'" @click="tab = 'log'">Nhật ký</button>
-            </div>
-            <template v-if="tab === 'assets'"
-              ><div class="section-line">
-                <span>{{ myAssets.length }} tài sản · {{ money(me?.worth || 0) }} tổng giá trị</span
-                ><button
-                  class="icon-button"
-                  aria-label="Đề nghị trao đổi"
-                  :disabled="!mayTrade"
-                  @click="openTrade"
-                >
-                  <Icon icon="lucide:arrow-left-right" />
-                </button>
-              </div>
-              <p v-if="!myAssets.length" class="empty-state">
-                Hành trình lớn bắt đầu bằng một góc phố.<br />Mua tài sản đầu tiên khi bạn đặt chân
-                tới.
-              </p>
-              <div class="asset-list">
-                <button
-                  v-for="a in myAssets"
-                  :key="a.id"
-                  @click="showTile(a.id)"
-                  :class="`group-${state.board[a.id]?.group || 'none'}`"
-                >
-                  <span class="asset-color" /><span
-                    >{{ propertyName(a.id)
-                    }}<small>{{
-                      a.mortgaged ? 'Đang thế chấp' : a.level === 5 ? 'Khách sạn' : `${a.level} nhà`
-                    }}</small></span
-                  ><Icon icon="lucide:chevron-right" />
-                </button>
-              </div>
-              <button v-if="mayTrade" class="wide" @click="openTrade">
-                Thương lượng với bạn bè
-              </button></template
-            >
-            <div v-else-if="tab === 'players'" class="standings">
-              <article v-for="(p, i) in state.players" :key="p.id">
-                <span class="player-token" :class="`player-${i}`"
-                  ><Icon :icon="tokenIcon(p.token)"
-                /></span>
-                <div>
-                  <b>{{ p.name }}</b
-                  ><small>{{
-                    p.bankrupt
-                      ? 'Đã phá sản'
-                      : p.jail
-                        ? 'Đang ở tù'
-                        : !p.connected
-                          ? 'Mất kết nối'
-                          : 'Đang chơi'
-                  }}</small>
-                </div>
-                <span
-                  >{{ money(p.cash) }}<small>Tổng {{ money(p.worth) }}</small></span
-                >
-              </article>
-            </div>
-            <ol v-else class="game-log">
-              <li
-                v-for="(line, i) in [...state.logs].reverse()"
-                :key="`${state.logs.length - i}-${line}`"
               >
-                {{ line }}
-              </li>
-            </ol>
-          </section>
+              <template v-else-if="state.phase === 'ended'"
+                ><Icon icon="lucide:trophy" class="victory-icon" />
+                <p>
+                  {{
+                    state.winnerIds.length
+                      ? `${state.winnerIds.map(personName).join(' & ')} chiến thắng!`
+                      : 'Không còn người có khả năng thanh toán. Ván kết thúc không có người thắng.'
+                  }}
+                </p>
+                <button
+                  v-if="isHost"
+                  class="primary wide"
+                  :disabled="blocked"
+                  @click="run('rematch')"
+                >
+                  Mở ván mới
+                </button></template
+              >
+              <template v-else-if="state.trade"
+                ><p>
+                  {{ personName(state.trade.from) }} đề nghị trao đổi với
+                  {{ personName(state.trade.to) }}.
+                </p>
+                <div class="trade-summary">
+                  <p>
+                    <b>Bên đề nghị đưa:</b>
+                    {{ state.trade.give.map(propertyName).join(', ') || 'Không có đất' }} +
+                    {{ money(state.trade.giveCash) }}
+                  </p>
+                  <p>
+                    <b>Đổi lấy:</b>
+                    {{ state.trade.take.map(propertyName).join(', ') || 'Không có đất' }} +
+                    {{ money(state.trade.receiveCash) }}
+                  </p>
+                  <small
+                    >Nhận đất thế chấp: trả ngay 10% giá thế chấp cho ngân hàng, giữ nguyên thế
+                    chấp.</small
+                  >
+                </div>
+                <button
+                  v-if="state.trade.to === me?.id"
+                  class="primary wide"
+                  :disabled="blocked"
+                  @click="run('trade-reply', { accept: true })"
+                >
+                  Chấp nhận trao đổi</button
+                ><button
+                  v-if="[state.trade.from, state.trade.to].includes(me?.id || '')"
+                  class="wide"
+                  :disabled="busy || !connected"
+                  @click="run('cancel-trade')"
+                >
+                  {{ state.trade.to === me?.id ? 'Từ chối' : 'Hủy đề nghị' }}
+                </button></template
+              >
+              <template v-else-if="state.phase === 'debt'"
+                ><p>
+                  {{ state.debt?.reason }} · Cần trả <b>{{ money(state.debt?.amount || 0) }}</b> cho
+                  {{ personName(state.debt?.to) }}.
+                </p>
+                <p v-if="debtMine">
+                  Bạn có {{ money(me?.cash || 0) }}. Chọn tài sản để bán nhà, thế chấp hoặc thương
+                  lượng.
+                </p>
+                <div v-if="debtMine" class="debt-assets">
+                  <button
+                    v-for="a in myAssets"
+                    :key="a.id"
+                    :disabled="blocked"
+                    @click="showTile(a.id)"
+                  >
+                    <Icon icon="lucide:landmark" />{{ propertyName(a.id)
+                    }}<small>{{
+                      a.mortgaged ? 'Đã thế chấp' : a.level ? 'Có công trình' : 'Có thể thế chấp'
+                    }}</small>
+                  </button>
+                </div>
+                <button v-if="debtMine" class="wide" @click="openTrade" :disabled="blocked">
+                  Trao đổi để trả nợ</button
+                ><button
+                  v-if="debtMine"
+                  class="danger wide"
+                  @click="modal = 'bankrupt'"
+                  :disabled="blocked"
+                >
+                  Tuyên bố phá sản…
+                </button></template
+              >
+              <template v-else-if="state.auction"
+                ><p>
+                  Giá cao nhất <b>{{ money(state.auction.high) }}</b> ·
+                  {{ personName(state.auction.bidder) }}
+                </p>
+                <p>
+                  Đến lượt {{ personName(state.auction.actor) }}. Bỏ lượt nghĩa là rút khỏi phiên
+                  đấu giá này.
+                </p>
+                <form
+                  v-if="state.auction.actor === me?.id"
+                  @submit.prevent="run('bid', { amount: bid })"
+                >
+                  <label for="bid-value">Giá bạn trả</label
+                  ><input
+                    id="bid-value"
+                    v-model.number="bid"
+                    type="number"
+                    :min="state.auction.high + 1"
+                    :max="me?.cash"
+                    step="1"
+                    required
+                  /><button class="primary wide" :disabled="blocked">Trả giá</button
+                  ><button type="button" class="wide" :disabled="blocked" @click="run('pass')">
+                    Rút khỏi đấu giá
+                  </button>
+                </form></template
+              >
+              <template v-else-if="state.phase === 'buy'"
+                ><p>
+                  {{ propertyName(active?.position || 0) }} · Giá
+                  {{ money(state.board[active?.position || 0]?.price || 0) }}
+                </p>
+                <template v-if="myTurn"
+                  ><button
+                    class="primary wide"
+                    :disabled="
+                      blocked || (me?.cash || 0) < (state.board[active?.position || 0]?.price || 0)
+                    "
+                    @click="run('buy')"
+                  >
+                    Mua tài sản</button
+                  ><button class="wide" :disabled="blocked" @click="run('auction')">
+                    Đưa ra đấu giá
+                  </button></template
+                ></template
+              >
+              <template v-else-if="myTurn && state.phase === 'roll'"
+                ><p v-if="me?.jail">
+                  Đang ở tù · Đã thử {{ me.jailTurns }}/3 lần. Gieo đôi để ra tù; lần thứ ba phải
+                  trả 50.
+                </p>
+                <button class="primary roll-button wide" :disabled="blocked" @click="run('roll')">
+                  <Icon icon="lucide:dices" />{{ me?.jail ? 'Thử gieo đôi' : 'Gieo xúc xắc' }}
+                </button>
+                <div v-if="me?.jail" class="button-row">
+                  <button :disabled="blocked || me.cash < 50" @click="run('bail')">
+                    Trả 50 để ra tù</button
+                  ><button v-if="me.jailCards" :disabled="blocked" @click="run('jail-card')">
+                    Dùng giấy miễn tù
+                  </button>
+                </div></template
+              >
+              <button
+                v-else-if="myTurn && state.phase === 'end'"
+                class="primary wide"
+                :disabled="blocked"
+                @click="run('end')"
+              >
+                Kết thúc lượt<Icon icon="lucide:arrow-right" />
+              </button>
+              <p v-else class="footnote">
+                Theo dõi bàn cờ, xem tài sản và chuẩn bị nước đi của bạn.
+              </p>
+              <div v-if="state.card && !pendingCard" class="event-card">
+                <Icon :icon="state.card.kind === 'chance' ? 'lucide:sparkles' : 'lucide:gift'" />
+                <p>{{ state.card.text }}</p>
+              </div>
+            </section>
+          </Teleport>
+          <Teleport :to="portfolioMount || 'body'" :disabled="!portfolioMount"
+            ><section class="portfolio">
+              <div class="mode-tabs">
+                <button :aria-pressed="tab === 'assets'" @click="tab = 'assets'">Tài sản</button
+                ><button :aria-pressed="tab === 'players'" @click="tab = 'players'">
+                  Người chơi</button
+                ><button :aria-pressed="tab === 'log'" @click="tab = 'log'">Nhật ký</button>
+              </div>
+              <template v-if="tab === 'assets'"
+                ><div class="section-line">
+                  <span
+                    >{{ myAssets.length }} tài sản · {{ money(me?.worth || 0) }} tổng giá trị</span
+                  ><button
+                    class="icon-button"
+                    aria-label="Đề nghị trao đổi"
+                    :disabled="!mayTrade"
+                    @click="openTrade"
+                  >
+                    <Icon icon="lucide:arrow-left-right" />
+                  </button>
+                </div>
+                <p v-if="!myAssets.length" class="empty-state">
+                  Hành trình lớn bắt đầu bằng một góc phố.<br />Mua tài sản đầu tiên khi bạn đặt
+                  chân tới.
+                </p>
+                <div class="asset-list">
+                  <button
+                    v-for="a in myAssets"
+                    :key="a.id"
+                    @click="showTile(a.id)"
+                    :class="`group-${state.board[a.id]?.group || 'none'}`"
+                  >
+                    <span class="asset-color" /><span
+                      >{{ propertyName(a.id)
+                      }}<small>{{
+                        a.mortgaged
+                          ? 'Đang thế chấp'
+                          : a.level === 5
+                            ? 'Khách sạn'
+                            : `${a.level} nhà`
+                      }}</small></span
+                    ><Icon icon="lucide:chevron-right" />
+                  </button>
+                </div>
+                <button v-if="mayTrade" class="wide" @click="openTrade">
+                  Thương lượng với bạn bè
+                </button></template
+              >
+              <div v-else-if="tab === 'players'" class="standings">
+                <article v-for="(p, i) in state.players" :key="p.id">
+                  <CharacterSprite
+                    class="strip-character"
+                    :class="`player-${i}`"
+                    :character="p.character"
+                    :name="p.name"
+                  />
+                  <div>
+                    <b>{{ p.name }}</b
+                    ><small>{{
+                      p.bankrupt
+                        ? 'Đã phá sản'
+                        : p.jail
+                          ? 'Đang ở tù'
+                          : !p.connected
+                            ? 'Mất kết nối'
+                            : 'Đang chơi'
+                    }}</small>
+                  </div>
+                  <span
+                    >{{ money(p.cash) }}<small>Tổng {{ money(p.worth) }}</small></span
+                  >
+                </article>
+              </div>
+              <ol v-else class="game-log">
+                <li
+                  v-for="(line, i) in [...state.logs].reverse()"
+                  :key="`${state.logs.length - i}-${line}`"
+                >
+                  {{ line }}
+                </li>
+              </ol>
+            </section></Teleport
+          >
         </aside>
       </div>
     </main>
 
+    <dialog
+      ref="decisionDialog"
+      class="capital-dialog decision-dialog"
+      aria-label="Quyết định lượt chơi"
+      @cancel.prevent
+    >
+      <div class="modal-body">
+        <header>
+          <span class="kicker">ĐẾN LƯỢT BẠN QUYẾT ĐỊNH</span
+          ><span class="decision-required">Bắt buộc</span>
+        </header>
+        <div ref="decisionMount" />
+      </div>
+    </dialog>
     <dialog ref="dialog" class="capital-dialog" @click="outside">
       <div class="modal-body">
         <header>
@@ -656,6 +886,39 @@ function outside(event: MouseEvent) {
           </button>
         </header>
         <p v-if="error" role="alert" class="capital-notice">{{ error }}</p>
+        <section v-show="modal === 'portfolio'">
+          <h2>
+            {{
+              tab === 'assets'
+                ? 'Tài sản của bạn'
+                : tab === 'players'
+                  ? 'Quanh bàn chơi'
+                  : 'Nhật ký ván chơi'
+            }}
+          </h2>
+          <div ref="portfolioMount" />
+        </section>
+        <section v-show="modal === 'view'">
+          <h2>Hiển thị bàn chơi</h2>
+          <div ref="viewMount" />
+        </section>
+        <section v-if="modal === 'character' && state?.phase === 'lobby'">
+          <h2>Nhân vật của bạn</h2>
+          <CharacterEditor
+            v-model="character"
+            :disabled="busy"
+            :name="me?.name"
+            :taken="
+              state.players
+                .filter((p) => p.id !== me?.id)
+                .flatMap((p) => (p.character ? [p.character] : []))
+            "
+          />
+          <p class="footnote">Lưu thay đổi sẽ hủy trạng thái sẵn sàng của bạn.</p>
+          <button class="primary wide" :disabled="blocked" @click="saveCharacter">
+            Lưu nhân vật
+          </button>
+        </section>
         <section
           v-if="modal === 'tile' && tile"
           class="deed-detail"
@@ -669,6 +932,30 @@ function outside(event: MouseEvent) {
             {{ asset?.owner ? `Chủ sở hữu: ${personName(asset.owner)}` : 'Thuộc ngân hàng'
             }}{{ asset?.mortgaged ? ' · Đang thế chấp' : '' }}
           </p>
+          <div v-if="tile.kind === 'street'" class="property-development">
+            <Transition name="construction" mode="out-in"
+              ><PropertyBuildings
+                v-if="asset?.level"
+                :key="`${tile.id}:${asset.level}`"
+                :level="asset.level"
+                :name="tile.name"
+              />
+              <div v-else class="empty-development">
+                <Icon icon="lucide:land-plot" /><span>Đất trống</span>
+              </div></Transition
+            ><strong>{{
+              asset?.level === 5
+                ? 'Khách sạn'
+                : asset?.level
+                  ? `${asset.level} nhà`
+                  : 'Chưa xây dựng'
+            }}</strong>
+            <div class="development-track">
+              <span v-for="n in 5" :key="n" :class="{ done: (asset?.level || 0) >= n }">{{
+                n === 5 ? 'KS' : n
+              }}</span>
+            </div>
+          </div>
           <template v-if="tile.price"
             ><div class="deed-prices">
               <span
@@ -801,6 +1088,9 @@ function outside(event: MouseEvent) {
         </section>
         <section v-if="modal === 'room' && state">
           <h2>Bàn chơi {{ state.code }}</h2>
+          <button class="wide" @click="modal = 'help'">
+            <Icon icon="lucide:book-open" />Luật chơi
+          </button>
           <button class="wide" @click="copy(invite)">
             {{ copied ? 'Đã chép' : 'Chép lời mời' }}
           </button>

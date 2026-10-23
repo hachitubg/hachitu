@@ -69,3 +69,4 @@ dev-server*.log
 # Reproducible Werewolf audit output
 server/werewolf/test-results/
 server/property-game/test-results/
+.research/

@@ -1,3 +1,4 @@
+import type { CharacterConfig } from './character-config.mjs'
 export interface Tile {
   id: number
   name: string
@@ -12,6 +13,8 @@ export interface Player {
   id: string
   name: string
   token: string
+  isBot?: boolean
+  character?: CharacterConfig
   connected: boolean
   ready: boolean
   cash: number
@@ -43,6 +46,8 @@ export interface Trade {
   receiveCash: number
 }
 export interface GameState {
+  serverTime?: number
+  presentation?: BoardPresentation | null
   code: string
   myId: string
   hostId: string
@@ -73,12 +78,32 @@ export interface GameState {
   trade: Trade | null
   card: { kind: string; text: string } | null
 }
+export interface BoardPresentation {
+  id: number
+  actorId: string
+  startedAt: number
+  readyAt: number
+  gameStartedAt: number
+  dice: number[]
+  skipDice?: boolean
+  segments: {
+    from: number
+    to: number
+    path: number[]
+    teleport: boolean
+    cause: string
+    stepMs: number
+    offsetMs: number
+    durationMs: number
+  }[]
+}
 export interface Session {
   code: string
   id: string
   secret: string
 }
 export interface Input {
+  character?: CharacterConfig
   name?: string
   token?: string
   code?: string
