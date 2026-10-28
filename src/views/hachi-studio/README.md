@@ -5,6 +5,18 @@ Route: `/hachi-studio`. Camera trước/sau, chụp ảnh, nhập ảnh, 63 pres
 
 ## Xử lý ảnh
 
+### Hiệu ứng và làm nét từ glfx.js (28/10/2026)
+
+Thư viện thực: [evanw/glfx.js](https://github.com/evanw/glfx.js), MIT. Bản phân phối nguyên gốc 28 KB nằm tại `public/hachi-studio/vendor/glfx/`, kèm license, URL nguồn và SHA-256. Nạp lười qua VueUse `useScriptTag`, không thêm npm dependency, không API key, không upload ảnh. Thuật toán/shader đều của upstream; `utils/effects.ts` chỉ là cấu hình và gọi API.
+
+Nút **Hiệu ứng** mở 32 preset có chỉnh mức/cỡ/tâm, tìm kiếm không dấu và nhóm Phong cảnh, Hoài niệm, Chất chơi, Biến dạng, Nghệ thuật, Ánh sáng. Gồm tilt-shift, triangle blur, zoom blur, vignette, sepia, noise, dot screen, ink, color halftone, hexagonal pixelate, swirl, bulge/pinch, Lens Blur, Edge Work, Vibrance và Curves. Các bản in hai màu, âm bản, solarize, cross-process và phác thảo là recipe tham số cho bộ lọc upstream; không phải 32 thuật toán độc lập. Lens Blur luôn để brightness = 0 để tránh lỗi trên GPU thiếu texture float. Không có hiệu ứng thời tiết động (mưa/tuyết) hoặc AI sinh ảnh trong bản này. Hạt film dùng nhiễu ngẫu nhiên upstream nên vị trí hạt có thể khác giữa preview và ảnh xuất.
+
+**Công cụ → Làm nét ảnh** dùng `unsharpMask`, có độ nét/bán kính và `denoise` trước hiệu ứng. Không phải super-resolution hoặc phục hồi ảnh AI. Chỉ hỗ trợ ảnh tĩnh trong Studio, không tác động camera/video. Hiệu ứng, giảm nhiễu và làm nét dùng một context glfx, một texture tái sử dụng; slider gộp cập nhật qua RAF hiện có. Khi kéo chữ không chạy lại toàn bộ bộ lọc.
+
+Pipeline: màu/LUT + crop/makeup/phông hiện tại → canvas glfx riêng → lớp chữ. Preview vẫn nhìn được toàn ảnh khi mở panel. Xem ảnh gốc tạm bỏ hiệu ứng. Xuất ảnh gọi cùng recipe, scale bán kính theo độ phân giải trước khi ghép chữ. Nếu WebGL lỗi/vượt kích thước hoặc mất context, có báo lỗi/Thử lại; không xuất âm thầm ảnh thiếu hiệu ứng. Texture/context được giải phóng khi rời app; context có thể tạo lại sau lỗi. Bản ảnh gốc trong phiên không bị ghi đè.
+
+Kiểm chứng tự động: `utils/effects.test.ts` kiểm tra toàn bộ preset, tham số hữu hạn, bypass 0%, thứ tự denoise/làm nét và bán kính xuất; kiểm tra GPU/browser vẫn cần trên Safari/Android thật. Các API, quảng cáo, persistence và code demo từ repo không được chạy.
+
 `data/looks.ts` chứa các công thức màu sRGB tự tạo, không sao chép LUT thương mại.
 `utils/renderer.ts` dùng WebGL để áp cùng một shader cho preview, thumbnail và ảnh JPEG xuất.
 Preset điều chỉnh exposure, contrast, saturation, warmth, tint và lifted blacks (fade).

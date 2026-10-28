@@ -22,6 +22,7 @@ export default defineConfigWithVueTs(
     '**/coverage/**',
     '.research/**',
     'vendor/poorup/**',
+    'public/hachi-studio/vendor/**',
   ]),
 
   ...pluginVue.configs['flat/essential'],

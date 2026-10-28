@@ -26,6 +26,9 @@ import { groups, looks } from './data/looks'
 import { demoScene, dispose, render } from './utils/renderer'
 import { decorate, textFonts, loadTextFont } from './utils/decorations'
 import { useTextTransform } from './composables/useTextTransform'
+import { usePhotoEffects } from './composables/usePhotoEffects'
+import { defaultEffects, hasEffects } from './utils/effects'
+import PhotoEffectsPanel from './components/PhotoEffectsPanel.vue'
 import './assets/fonts.css'
 import type { Decorations, TextBounds } from './utils/decorations'
 import { useMakeup } from './composables/useMakeup'
@@ -61,6 +64,13 @@ const canvas = ref<HTMLCanvasElement>()
 const video = ref<HTMLVideoElement>()
 const clip = ref<HTMLVideoElement>()
 const overlay = ref<HTMLCanvasElement>()
+const effectsCanvas = ref<HTMLCanvasElement>()
+const photoEffects = usePhotoEffects()
+const effectSettings = ref(defaultEffects())
+const effectApplied = ref(false)
+const effectsEnabled = computed(
+  () => area.value === 'studio' && mode.value === 'photo' && hasEffects(effectSettings.value),
+)
 const stage = ref<HTMLElement>()
 const sheet = ref<HTMLDialogElement>()
 useMouseScroll(sheet)
@@ -280,25 +290,41 @@ const studioMode = ref<'demo' | 'photo' | 'video'>('demo')
 const freshCapture = ref(false)
 const cameraSettings = shallowRef({ look: looks[0]!, strength: 100, ratio: 3 / 4 })
 const studioSettings = shallowRef({ look: looks[0]!, strength: 100, ratio: 3 / 4 })
-type Tool = 'color' | 'crop' | 'text' | 'makeup' | 'background' | 'erase' | 'blur' | 'tools'
+type Tool =
+  | 'color'
+  | 'crop'
+  | 'text'
+  | 'makeup'
+  | 'background'
+  | 'erase'
+  | 'blur'
+  | 'tools'
+  | 'effects'
+  | 'sharpen'
 const tool = ref<Tool | null>(null)
-const inlineEditor = computed(() => tool.value === 'color' || tool.value === 'text')
+const inlineEditor = computed(() =>
+  ['color', 'text', 'effects', 'sharpen'].includes(tool.value || ''),
+)
 const toolTitle = computed(() =>
-  tool.value === 'color'
-    ? 'Màu của khoảnh khắc'
-    : tool.value === 'text'
-      ? 'Thêm một dòng cảm xúc'
-      : tool.value === 'makeup'
-        ? 'Makeup của bạn'
-        : tool.value === 'background'
-          ? 'Xóa phông'
-          : tool.value === 'erase'
-            ? 'Xóa vật nhỏ'
-            : tool.value === 'blur'
-              ? 'Mờ hậu cảnh'
-              : tool.value === 'tools'
-                ? 'Công cụ Studio'
-                : 'Chọn khung hình',
+  tool.value === 'effects'
+    ? 'Hiệu ứng ảnh'
+    : tool.value === 'sharpen'
+      ? 'Làm nét ảnh'
+      : tool.value === 'color'
+        ? 'Màu của khoảnh khắc'
+        : tool.value === 'text'
+          ? 'Thêm một dòng cảm xúc'
+          : tool.value === 'makeup'
+            ? 'Makeup của bạn'
+            : tool.value === 'background'
+              ? 'Xóa phông'
+              : tool.value === 'erase'
+                ? 'Xóa vật nhỏ'
+                : tool.value === 'blur'
+                  ? 'Mờ hậu cảnh'
+                  : tool.value === 'tools'
+                    ? 'Công cụ Studio'
+                    : 'Chọn khung hình',
 )
 const background = useBackground()
 const blurEnabled = ref(false)
@@ -439,6 +465,12 @@ function draw() {
         : undefined,
       comparing.value ? undefined : activeLut.value,
     )
+    effectApplied.value = !!(
+      effectsEnabled.value &&
+      !comparing.value &&
+      effectsCanvas.value &&
+      photoEffects.apply(canvas.value, effectsCanvas.value, effectSettings.value)
+    )
     if (overlay.value)
       textBounds.value = decorate(
         overlay.value,
@@ -536,6 +568,9 @@ watch(
     backgroundEffect,
     eraseMode,
     activeLut,
+    effectSettings,
+    photoEffects.ready,
+    photoEffects.error,
   ],
   () => {
     previewDirty = true
@@ -544,6 +579,8 @@ watch(
 )
 
 function resetEdits() {
+  effectSettings.value = defaultEffects()
+  effectApplied.value = false
   finishCrop()
   autoPrevious.value = undefined
   autoReport.value = ''
@@ -614,6 +651,7 @@ function openTool(next: Tool) {
     return
   }
   tool.value = next
+  if (next === 'effects' || next === 'sharpen') void photoEffects.start()
   if (next === 'background') blurEnabled.value = false
   if (next === 'blur') {
     blurEnabled.value = true
@@ -746,7 +784,7 @@ watch(tool, async (value) => {
   await nextTick()
   if (sheet.value?.open) sheet.value.close()
   if (value && !sheet.value?.open) {
-    if (value === 'color' || value === 'text') sheet.value?.show()
+    if (value && ['color', 'text', 'effects', 'sharpen'].includes(value)) sheet.value?.show()
     else sheet.value?.showModal()
   } else if (!value && sheet.value?.open) sheet.value.close()
 })
@@ -1123,7 +1161,13 @@ async function savePhoto() {
     output.width = exportCanvas.width
     output.height = exportCanvas.height
     const ctx = output.getContext('2d')
-    ctx?.drawImage(exportCanvas, 0, 0)
+    if (effectsEnabled.value) {
+      if (
+        !(await photoEffects.start()) ||
+        !photoEffects.apply(exportCanvas, output, effectSettings.value)
+      )
+        throw new Error('Chưa áp dụng được hiệu ứng. Hãy thử lại hoặc tắt hiệu ứng rồi lưu ảnh.')
+    } else ctx?.drawImage(exportCanvas, 0, 0)
     decorate(exportOverlay, output.width, output.height, decorations)
     ctx?.drawImage(exportOverlay, 0, 0)
     const transparent =
@@ -1337,6 +1381,12 @@ onScopeDispose(() => {
         <div class="media-frame" :class="{ 'is-cropping': cropEditing }" :style="frameStyle">
           <canvas ref="canvas" class="photo-canvas" aria-label="Ảnh xem trước với màu đã chọn" />
           <canvas
+            ref="effectsCanvas"
+            v-show="effectApplied && !comparing"
+            class="effects-canvas"
+            aria-label="Ảnh xem trước với hiệu ứng và làm nét"
+          />
+          <canvas
             ref="overlay"
             class="text-overlay"
             :class="{
@@ -1460,6 +1510,10 @@ onScopeDispose(() => {
           </button>
           <button :disabled="recording || saving || mode === 'demo'" @click="openTool('text')">
             <span class="type-icon">Aa</span><span>Chữ</span><i v-if="decorations.text" />
+          </button>
+          <button :disabled="recording || saving || mode !== 'photo'" @click="openTool('effects')">
+            <Icon icon="lucide:wand-sparkles" class="size-5" /><span>Hiệu ứng</span
+            ><i v-if="hasEffects(effectSettings)" />
           </button>
           <button :disabled="recording || saving || mode === 'demo'" @click="openTool('tools')">
             <Icon icon="lucide:sliders-horizontal" class="size-5" /><span>Công cụ</span>
@@ -1651,8 +1705,20 @@ onScopeDispose(() => {
           </button>
         </div>
         <div class="sheet-content">
+          <PhotoEffectsPanel
+            v-if="tool === 'effects' || tool === 'sharpen'"
+            v-model="effectSettings"
+            :sharpen-only="tool === 'sharpen'"
+            :loading="photoEffects.loading.value"
+            :error="photoEffects.error.value"
+            @retry="photoEffects.retry"
+          />
           <template v-if="tool === 'tools'"
             ><div class="studio-tools-grid">
+              <button :disabled="mode !== 'photo'" @click="openTool('sharpen')">
+                <Icon icon="lucide:focus" class="size-6" /><strong>Làm nét ảnh</strong
+                ><span>Unsharp Mask và giảm nhiễu · glfx.js</span>
+              </button>
               <button @click="openTool('crop')">
                 <Icon icon="lucide:crop" class="size-6" /><strong>Crop</strong
                 ><span>Chọn tỷ lệ, phóng và dịch ảnh</span></button
@@ -2643,6 +2709,17 @@ onScopeDispose(() => {
   display: block;
   width: 100%;
   height: 100%;
+}
+.effects-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.tool-shortcuts {
+  overflow-x: auto;
+  scrollbar-width: thin;
 }
 .text-overlay {
   position: absolute;
