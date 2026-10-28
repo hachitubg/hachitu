@@ -24,7 +24,9 @@ import {
 } from '@vueuse/core'
 import { groups, looks } from './data/looks'
 import { demoScene, dispose, render } from './utils/renderer'
-import { decorate, textFonts } from './utils/decorations'
+import { decorate, textFonts, loadTextFont } from './utils/decorations'
+import { useTextTransform } from './composables/useTextTransform'
+import './assets/fonts.css'
 import type { Decorations, TextBounds } from './utils/decorations'
 import { useMakeup } from './composables/useMakeup'
 import { colorControls, NEUTRAL_COLOR } from './utils/color'
@@ -280,6 +282,7 @@ const cameraSettings = shallowRef({ look: looks[0]!, strength: 100, ratio: 3 / 4
 const studioSettings = shallowRef({ look: looks[0]!, strength: 100, ratio: 3 / 4 })
 type Tool = 'color' | 'crop' | 'text' | 'makeup' | 'background' | 'erase' | 'blur' | 'tools'
 const tool = ref<Tool | null>(null)
+const inlineEditor = computed(() => tool.value === 'color' || tool.value === 'text')
 const toolTitle = computed(() =>
   tool.value === 'color'
     ? 'Màu của khoảnh khắc'
@@ -336,6 +339,37 @@ const decorations = reactive<Decorations>({
   y: 0.72,
   size: 6,
 })
+const textEditable = computed(
+  () =>
+    area.value === 'studio' &&
+    !!decorations.text.trim() &&
+    !cropEditing.value &&
+    !eraseMode.value &&
+    !comparing.value &&
+    !recording.value &&
+    !saving.value &&
+    (!tool.value || tool.value === 'text'),
+)
+const textTransform = useTextTransform(overlay, textBounds, decorations, textEditable)
+const fontLoading = ref(false)
+let fontRequest = 0
+watch(
+  () => decorations.font,
+  async (id) => {
+    const request = ++fontRequest
+    fontLoading.value = true
+    try {
+      await loadTextFont(id)
+    } catch {
+      notice.value = 'Chưa tải được font. Hãy kiểm tra kết nối và chọn lại font.'
+    } finally {
+      if (request === fontRequest) {
+        fontLoading.value = false
+        previewDirty = true
+      }
+    }
+  },
+)
 const recording = ref(false)
 const clipPlaying = ref(false)
 const clipTime = ref(0)
@@ -451,13 +485,32 @@ function draw() {
 
 let lastFrame = 0
 let previewDirty = false
+let textDirty = false
+watch(
+  decorations,
+  () => {
+    if (eraseMode.value) previewDirty = true
+    else textDirty = true
+  },
+  { deep: true },
+)
 useRafFn(({ timestamp }) => {
   if (visibility.value !== 'visible') return
   if (previewDirty) {
     previewDirty = false
+    textDirty = false
     lastFrame = timestamp
     draw()
     return
+  }
+  if (textDirty && canvas.value && overlay.value) {
+    textDirty = false
+    textBounds.value = decorate(
+      overlay.value,
+      canvas.value.width,
+      canvas.value.height,
+      comparing.value || area.value === 'camera' ? { ...decorations, text: '' } : decorations,
+    )
   }
   if (
     !['camera', 'video'].includes(mode.value) ||
@@ -477,7 +530,6 @@ watch(
     mode,
     still,
     framing,
-    decorations,
     area,
     makeupEffect,
     adjustments,
@@ -692,8 +744,9 @@ function retryMakeup() {
 }
 watch(tool, async (value) => {
   await nextTick()
+  if (sheet.value?.open) sheet.value.close()
   if (value && !sheet.value?.open) {
-    if (value === 'color') sheet.value?.show()
+    if (value === 'color' || value === 'text') sheet.value?.show()
     else sheet.value?.showModal()
   } else if (!value && sheet.value?.open) sheet.value.close()
 })
@@ -762,44 +815,19 @@ function undoAuto() {
     autoReport.value = 'Đã hoàn tác cân màu tự động.'
   }
 }
-let drag: { id: number; startX: number; startY: number; x: number; y: number } | undefined
 useEventListener(overlay, 'pointerdown', (event: PointerEvent) => {
   if (cropEditing.value || comparing.value) return
   if (eraseMode.value && !eraseBusy.value && !tool.value && overlay.value) {
     overlay.value.setPointerCapture(event.pointerId)
     paintErase(event)
     event.preventDefault()
-    return
   }
-  if (!overlay.value || !textBounds.value || tool.value || recording.value || saving.value) return
-  const rect = overlay.value.getBoundingClientRect()
-  const x = ((event.clientX - rect.left) * overlay.value.width) / rect.width
-  const y = ((event.clientY - rect.top) * overlay.value.height) / rect.height
-  const box = textBounds.value
-  if (x < box.x || x > box.x + box.width || y < box.y || y > box.y + box.height) return
-  drag = {
-    id: event.pointerId,
-    startX: event.clientX,
-    startY: event.clientY,
-    x: decorations.x,
-    y: decorations.y,
-  }
-  overlay.value.setPointerCapture(event.pointerId)
-  event.preventDefault()
 })
 useEventListener(overlay, 'pointermove', (event: PointerEvent) => {
-  if (eraseMode.value && erasePoint?.id === event.pointerId && !eraseBusy.value) {
-    paintErase(event)
-    return
-  }
-  if (!drag || !overlay.value || event.pointerId !== drag.id) return
-  const rect = overlay.value.getBoundingClientRect()
-  decorations.x = Math.max(0, Math.min(1, drag.x + (event.clientX - drag.startX) / rect.width))
-  decorations.y = Math.max(0, Math.min(1, drag.y + (event.clientY - drag.startY) / rect.height))
+  if (eraseMode.value && erasePoint?.id === event.pointerId && !eraseBusy.value) paintErase(event)
 })
 useEventListener(overlay, ['pointerup', 'pointercancel', 'lostpointercapture'], () => {
   erasePoint = undefined
-  drag = undefined
 })
 
 async function toggleClip() {
@@ -1089,6 +1117,7 @@ async function savePhoto() {
       area.value === 'studio' ? backgroundEffect.value : undefined,
       activeLut.value,
     )
+    await loadTextFont(decorations.font)
     await document.fonts.ready
     const output = document.createElement('canvas')
     output.width = exportCanvas.width
@@ -1238,7 +1267,7 @@ onScopeDispose(() => {
 <template>
   <div class="studio-app font-body">
     <CollageStudio v-if="collageVisited" v-show="collageOpen" @close="closeCollage" />
-    <div v-if="!collageOpen" class="camera-phone">
+    <div v-if="!collageOpen" class="camera-phone" :class="{ 'inline-editing': inlineEditor }">
       <header class="app-top">
         <RouterLink to="/" class="chrome-button" aria-label="Về trang chủ"
           ><Icon icon="lucide:arrow-left" class="size-5"
@@ -1315,6 +1344,23 @@ onScopeDispose(() => {
             }"
             aria-label="Chữ trên ảnh, kéo để thay đổi vị trí"
           />
+          <div
+            v-if="textEditable && textTransform.selected.value && textBounds"
+            class="text-selection"
+            :style="textTransform.selectionStyle.value"
+          >
+            <button
+              class="text-resize-handle"
+              aria-label="Kéo để phóng to hoặc thu nhỏ chữ"
+              @pointerdown.stop="textTransform.startResize"
+              @keydown.up.prevent="textTransform.resizeBy(1.1)"
+              @keydown.down.prevent="textTransform.resizeBy(1 / 1.1)"
+              @keydown.right.prevent="textTransform.resizeBy(1.1)"
+              @keydown.left.prevent="textTransform.resizeBy(1 / 1.1)"
+            >
+              <Icon icon="lucide:move-diagonal-2" class="size-4" />
+            </button>
+          </div>
           <video ref="video" muted playsinline class="hidden-video" aria-hidden="true" />
           <video
             ref="clip"
@@ -1580,9 +1626,13 @@ onScopeDispose(() => {
       <dialog
         ref="sheet"
         class="editor-sheet"
-        :class="{ 'color-sheet': tool === 'color', 'color-expanded': colorAdvanced }"
+        :class="{
+          'color-sheet': tool === 'color',
+          'color-expanded': colorAdvanced,
+          'inline-sheet': inlineEditor,
+        }"
         aria-labelledby="sheet-title"
-        @close="closeSheet"
+        @cancel.prevent="closeSheet"
         @click="dismissBackdrop"
       >
         <div class="sheet-grip" aria-hidden="true" />
@@ -2048,14 +2098,14 @@ onScopeDispose(() => {
             <div class="text-sliders">
               <div>
                 <label class="slider-label" for="text-size"
-                  >Cỡ chữ <span>{{ decorations.size }}</span></label
+                  >Cỡ chữ <span>{{ decorations.size.toFixed(1) }}</span></label
                 ><input
                   id="text-size"
                   v-model.number="decorations.size"
                   type="range"
                   min="3"
-                  max="10"
-                  step=".5"
+                  max="40"
+                  step=".1"
                 />
               </div>
               <div>
@@ -2071,7 +2121,11 @@ onScopeDispose(() => {
               </div>
             </div>
             <div class="text-bottom">
-              <span>Bấm Xong, rồi kéo chữ trên ảnh.</span
+              <span>{{
+                fontLoading
+                  ? 'Đang tải font…'
+                  : 'Chạm chữ để kéo · Kéo nút góc / chụm 2 ngón để đổi cỡ · Lăn chuột trên chữ để zoom'
+              }}</span
               ><button class="delete-text" :disabled="!decorations.text" @click="deleteText">
                 <Icon icon="lucide:trash-2" class="size-4" />Xóa chữ
               </button>
@@ -2602,6 +2656,54 @@ onScopeDispose(() => {
 }
 .text-overlay.draggable:active {
   cursor: grabbing;
+}
+.text-selection {
+  position: absolute;
+  border: 1px dashed #fff;
+  outline: 1px solid #2f241f88;
+  pointer-events: none;
+  z-index: 3;
+}
+.text-resize-handle {
+  position: absolute;
+  right: -16px;
+  bottom: -16px;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  background: var(--color-bg-surface);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-accent-coral);
+  pointer-events: auto;
+  touch-action: none;
+  cursor: nwse-resize;
+}
+.camera-phone.inline-editing .camera-dock {
+  display: none;
+}
+.camera-phone .editor-sheet.inline-sheet {
+  position: relative;
+  inset: auto;
+  margin: 0;
+  width: 100%;
+  max-width: none;
+  height: 36dvh;
+  max-height: 36dvh;
+  flex-shrink: 0;
+  box-shadow: none;
+  z-index: 4;
+}
+.inline-sheet .sheet-grip {
+  display: none;
+}
+.inline-sheet .sheet-top {
+  padding-top: 12px;
+}
+.text-overlay {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 .hidden-video {
   position: absolute;
@@ -3150,6 +3252,24 @@ a:focus-visible {
   }
   .editor-sheet {
     bottom: 24px;
+  }
+  .camera-phone.inline-editing {
+    width: min(1100px, 100%);
+  }
+  .inline-editing .camera-stage {
+    margin-right: 340px;
+  }
+  .camera-phone .editor-sheet.inline-sheet {
+    position: absolute;
+    top: 112px;
+    bottom: 0;
+    right: 0;
+    left: auto;
+    width: 340px;
+    height: auto;
+    max-height: none;
+    border-top: 0;
+    border-left: 1px solid var(--color-border-default);
   }
 }
 @media (max-height: 650px) {

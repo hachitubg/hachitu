@@ -1,10 +1,32 @@
 export const textFonts = [
   { id: 'classic', name: 'Classic', family: '"Be Vietnam Pro", sans-serif', weight: 600 },
-  { id: 'editorial', name: 'Editorial', family: 'Georgia, serif', weight: 400 },
-  { id: 'typewriter', name: 'Typewriter', family: '"Courier New", monospace', weight: 600 },
+  { id: 'editorial', name: 'Lora', family: '"Studio Lora", "Be Vietnam Pro", serif', weight: 400 },
+  {
+    id: 'typewriter',
+    name: 'Mono',
+    family: '"Studio Mono", "Be Vietnam Pro", monospace',
+    weight: 600,
+  },
   { id: 'bold', name: 'Bold', family: '"Anybody", sans-serif', weight: 800 },
-  { id: 'modern', name: 'Modern', family: '"Trebuchet MS", sans-serif', weight: 400 },
+  { id: 'modern', name: 'Modern', family: '"Be Vietnam Pro", sans-serif', weight: 400 },
+  {
+    id: 'script',
+    name: 'Viết tay',
+    family: '"Studio Script", "Be Vietnam Pro", cursive',
+    weight: 600,
+  },
+  {
+    id: 'poster',
+    name: 'Poster',
+    family: '"Studio Condensed", "Be Vietnam Pro", sans-serif',
+    weight: 700,
+  },
 ] as const
+
+export async function loadTextFont(id: string) {
+  const font = textFonts.find((item) => item.id === id) ?? textFonts[0]
+  await document.fonts.load(`${font.weight} 32px ${font.family}`, 'Ảnh đẹp Việt Nam – Đặng Thị Tú')
+}
 
 export interface Decorations {
   text: string

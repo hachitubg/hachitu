@@ -122,3 +122,12 @@ cạnh dài 2560px; tỷ lệ được crop ở giữa. Camera trước được
 - Gộp thay đổi slider theo nhịp màn hình; video đang dừng không render liên tục.
 - Bảng màu không làm tối ảnh, ưu tiên thư viện và độ mạnh. Tùy chỉnh nâng cao vẫn mở riêng.
 - Bấm lại nút công cụ để đóng, hoặc dùng Xong/Escape. Xuất ảnh vẫn giữ chất lượng riêng với preview.
+
+# Cải tiến thao tác trực tiếp (28/10/2026)
+
+- Bảng Màu/Chữ là panel không modal: mobile chiếm vùng dưới cố định, desktop ở cột phải; vùng ảnh tự co theo phần không gian còn lại, không phủ ảnh. Xong đóng panel, không xóa thiết lập.
+- Chạm chữ để chọn; kéo đổi vị trí, kéo tay nắm góc đổi cỡ, chụm hai ngón để scale kèm di chuyển, lăn chuột trên chữ để zoom. Phím mũi tên khi focus tay nắm cũng đổi cỡ. Kích thước giới hạn 1–40% chiều rộng ảnh; vị trí dùng tọa độ chuẩn hóa, khung chọn không xuất vào ảnh.
+- `useTextTransform` quản lý pointer capture, rebase khi nhấc một ngón, hủy khi rời chế độ chỉnh và dọn listener bằng VueUse. Không tham gia crop/xóa vật; các chế độ đó giữ gesture riêng.
+- Chuyển động chữ chỉ vẽ lại canvas overlay trên RAF, không render lại màu/makeup toàn ảnh mỗi pointermove. Các thao tác màu vẫn dùng pipeline sẵn có.
+- Font Lora, Roboto Mono, Dancing Script, Barlow Condensed được self-host tại `public/hachi-studio/fonts/`, có OFL theo từng font; thay các font hệ thống dễ khác nhau giữa điện thoại. Khi đổi font, chờ `document.fonts.load` rồi cập nhật preview; xuất ảnh chờ font đã chọn trước khi vẽ chữ. Font của website (Be Vietnam Pro/Anybody) tiếp tục được dùng.
+- Kiểm thử: `pnpm exec vitest run src/views/hachi-studio`; cần kiểm tra thêm cảm giác pinch và bàn phím ảo trên điện thoại thật trước khi deploy.
