@@ -33,11 +33,21 @@ onScopeDispose(() => {
 })
 const { copy, copied } = useClipboard()
 const { y: scrollY } = useWindowScroll()
-const mode = ref<'create' | 'join'>('create')
+const mode = ref<'create' | 'join'>('join')
 const cardsOnly = ref(false)
 const manualNewGame = ref(false)
-const code = ref(new URLSearchParams(location.search).get('room') || '')
-if (code.value) mode.value = 'join'
+const invitedCode = (new URLSearchParams(location.search).get('room') || '').trim().toUpperCase()
+const invitation = ref(/^[A-Z0-9]{6}$/.test(invitedCode))
+const code = ref(invitedCode)
+function createRoomMode() {
+  mode.value = 'create'
+}
+function joinRoomMode() {
+  mode.value = 'join'
+}
+function editRoomCode() {
+  invitation.value = false
+}
 const name = ref('')
 const avatar = ref(randomAvatar())
 const avatarPicker = ref<HTMLInputElement>()
@@ -295,6 +305,13 @@ function choiceInput(): Input {
   }
 }
 async function enter() {
+  if (
+    !name.value.trim() ||
+    (mode.value === 'join' && !/^[A-Z0-9]{6}$/.test(code.value.trim().toUpperCase()))
+  ) {
+    error.value = 'Hãy nhập tên và mã phòng gồm 6 ký tự.'
+    return
+  }
   await send(mode.value === 'create' ? 'create' : 'join', {
     name: name.value,
     avatar: avatar.value,
@@ -499,12 +516,21 @@ function handleDialogClick(event: MouseEvent) {
         </div>
       </section>
       <form class="entry-form" @submit.prevent="enter">
-        <div class="segmented">
-          <button type="button" :aria-pressed="mode === 'create'" @click="mode = 'create'">
-            Làm quản trò</button
-          ><button type="button" :aria-pressed="mode === 'join'" @click="mode = 'join'">
-            Vào làng
+        <div class="entry-options-row">
+          <button v-if="mode === 'create'" type="button" class="entry-back" @click="joinRoomMode">
+            <Icon icon="lucide:arrow-left" />Vào phòng
           </button>
+          <span v-else class="eyebrow">DÀNH CHO NGƯỜI CHƠI</span>
+          <details class="entry-options">
+            <summary><Icon icon="lucide:settings-2" />Tùy chọn</summary>
+            <div>
+              <button type="button" @click="createRoomMode">
+                <Icon icon="lucide:crown" />Tạo phòng · Làm quản trò</button
+              ><button v-if="mode === 'create'" type="button" @click="joinRoomMode">
+                Vào phòng có sẵn
+              </button>
+            </div>
+          </details>
         </div>
         <span class="eyebrow">{{
           mode === 'create' ? 'BẠN DẪN DẮT CÂU CHUYỆN' : 'MỖI NGƯỜI MỘT ĐIỆN THOẠI'
@@ -518,7 +544,13 @@ function handleDialogClick(event: MouseEvent) {
           placeholder="Hãy nhập tên"
           autocomplete="nickname"
           required
-        /><template v-if="mode === 'join'"
+        />
+        <div v-if="mode === 'join' && invitation" class="invite-room-ticket">
+          <Icon icon="lucide:door-open" /><span
+            >Tham gia phòng<strong>{{ code }}</strong></span
+          ><button type="button" @click="editRoomCode">Đổi phòng</button>
+        </div>
+        <template v-else-if="mode === 'join'"
           ><label for="ww-code">Mã phòng</label
           ><input
             id="ww-code"
@@ -526,6 +558,8 @@ function handleDialogClick(event: MouseEvent) {
             maxlength="6"
             placeholder="6 ký tự trên máy quản trò"
             autocapitalize="characters"
+            pattern="[A-Za-z0-9]{6}"
+            minlength="6"
             required
         /></template>
         <AvatarPicker v-model="avatar" :busy="imageBusy || busy" @upload="avatarPicker?.click()" />
@@ -540,7 +574,13 @@ function handleDialogClick(event: MouseEvent) {
         </label>
         <input ref="avatarPicker" type="file" accept="image/*" hidden @change="avatarFile" /><button
           class="ww-primary"
-          :disabled="busy || !connected || imageBusy || !name.trim()"
+          :disabled="
+            busy ||
+            !connected ||
+            imageBusy ||
+            !name.trim() ||
+            (mode === 'join' && !/^[A-Z0-9]{6}$/.test(code.trim().toUpperCase()))
+          "
         >
           {{ busy ? 'Đang mở cửa…' : mode === 'create' ? 'Tạo phòng chơi' : 'Vào phòng'
           }}<Icon icon="lucide:arrow-right" />

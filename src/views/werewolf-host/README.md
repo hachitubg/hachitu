@@ -172,3 +172,7 @@ Giao diện mobile dùng popup sát đáy màn hình, hỗ trợ vùng an toàn 
 Ba ảnh `public/werewolf-host/roles.webp`, `public/werewolf-host/basic-extra.webp` và `public/werewolf-host/expansion.webp` được tạo bằng công cụ imagegen tích hợp, không dùng ảnh trích từ bộ bài thương mại. Toàn bộ 67 loại nhân vật có chân dung riêng theo phong cách hoạt hình cổ tích vẽ tay. Prompt và bố cục atlas được lưu trong `public/werewolf-host/ART.md`.
 
 QR dùng [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) 1.4.4 (MIT), vendored tại `public/werewolf-host/vendor/`, tải lười bằng VueUse `useScriptTag`. Không gửi mã phòng tới dịch vụ tạo QR bên ngoài. Có file LICENSE kèm theo; vendor được loại riêng khỏi oxlint, code ứng dụng vẫn được lint bình thường.
+# Luồng vào phòng (01/11/2026)
+
+Mở app mặc định ở chế độ Vào phòng; Tạo phòng/Làm quản trò nằm trong menu Tùy chọn của form. QR và link mời chứa `/werewolf-host?room=CODE`. Mã hợp lệ 6 ký tự được điền sẵn và hiện dạng ticket; người chơi chỉ nhập tên, chọn avatar rồi xác nhận vào phòng. Không tự tạo danh tính hoặc gửi join trước khi người chơi xác nhận. Có nút Đổi phòng để nhập mã khác; mã sai định dạng vẫn hiện input và không gửi join. Phòng không tồn tại/đã đóng/đang chơi tiếp tục được backend kiểm tra, báo lỗi như trước. Phiên cũ trên cùng trình duyệt vẫn được ưu tiên khôi phục bởi cơ chế resume hiện có.
+

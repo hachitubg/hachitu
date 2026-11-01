@@ -36,9 +36,67 @@ afterAll(() => {
   })
 })
 afterEach(() => {
+  window.history.replaceState({}, '', '/')
   wrappers.splice(0).forEach((wrapper) => wrapper.unmount())
   vi.clearAllMocks()
   vi.useRealTimers()
+})
+function entryPage(query = '') {
+  window.history.replaceState({}, '', `/werewolf-host${query}`)
+  const send = vi.fn().mockResolvedValue(true)
+  mocks.useRoom.mockReturnValue({
+    state: shallowRef(),
+    catalog: shallowRef([]),
+    busy: ref(false),
+    connected: ref(true),
+    error: ref(''),
+    countdown: ref(0),
+    send,
+    reconnect: vi.fn(),
+  })
+  const wrapper = mount(WerewolfPage, {
+    global: {
+      stubs: {
+        RouterLink: { template: '<a><slot/></a>' },
+        Icon: true,
+        AvatarPicker: true,
+        RoleCard: true,
+      },
+    },
+  })
+  wrappers.push(wrapper)
+  return { wrapper, send }
+}
+it('opens join by default and puts room creation under options', async () => {
+  const { wrapper, send } = entryPage()
+  expect(wrapper.find('#ww-code').exists()).toBe(true)
+  expect(wrapper.find('.entry-options').text()).toContain('Tạo phòng')
+  await wrapper.get('#ww-name').setValue('Tú')
+  await wrapper.get('#ww-code').setValue('abc123')
+  await wrapper.get('.entry-form').trigger('submit')
+  expect(send).toHaveBeenCalledWith('join', expect.objectContaining({ name: 'Tú', code: 'ABC123' }))
+  await wrapper.get('.entry-options button').trigger('click')
+  expect(wrapper.find('#ww-code').exists()).toBe(false)
+  await wrapper.get('.entry-form').trigger('submit')
+  expect(send).toHaveBeenLastCalledWith('create', expect.objectContaining({ cardsOnly: false }))
+})
+it('QR link preselects the room and only requires the name/avatar confirmation', async () => {
+  const { wrapper, send } = entryPage('?room=abc123')
+  expect(wrapper.find('#ww-code').exists()).toBe(false)
+  expect(wrapper.get('.invite-room-ticket').text()).toContain('ABC123')
+  expect(send).not.toHaveBeenCalled()
+  await wrapper.get('#ww-name').setValue('An')
+  await wrapper.get('.entry-form').trigger('submit')
+  expect(send).toHaveBeenCalledWith('join', expect.objectContaining({ name: 'An', code: 'ABC123' }))
+  await wrapper.get('.invite-room-ticket button').trigger('click')
+  expect(wrapper.find('#ww-code').exists()).toBe(true)
+})
+it('invalid invitation does not hide room input or submit an invalid join', async () => {
+  const { wrapper, send } = entryPage('?room=BAD')
+  expect(wrapper.find('#ww-code').exists()).toBe(true)
+  await wrapper.get('#ww-name').setValue('An')
+  await wrapper.get('.entry-form').trigger('submit')
+  expect(send).not.toHaveBeenCalled()
 })
 function page(
   key: string,

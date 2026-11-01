@@ -168,6 +168,87 @@
   border: 1px solid var(--color-border-default);
   box-shadow: 12px 12px 0 var(--color-bg-elevated);
 }
+.entry-options-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.entry-options {
+  position: relative;
+  margin-left: auto;
+}
+.entry-options summary {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--color-border-default);
+  cursor: pointer;
+  font-size: 12px;
+  list-style: none;
+}
+.entry-options summary::-webkit-details-marker {
+  display: none;
+}
+.entry-options summary svg,
+.entry-back svg,
+.invite-room-ticket > svg {
+  width: 18px;
+  height: 18px;
+}
+.entry-options > div {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  width: 245px;
+  z-index: 5;
+  padding: 8px;
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-default);
+  box-shadow: 0 8px 24px #2f241f15;
+}
+.entry-options button,
+.entry-back {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 44px;
+  padding: 10px;
+  font-size: 12px;
+  text-align: left;
+}
+.entry-options button {
+  width: 100%;
+}
+.invite-room-ticket {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 16px 0;
+  padding: 14px;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-default);
+}
+.invite-room-ticket span {
+  flex: 1;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+.invite-room-ticket strong {
+  display: block;
+  margin-top: 5px;
+  font: 700 22px var(--font-display);
+  letter-spacing: 0.13em;
+  color: var(--color-accent-amber);
+}
+.invite-room-ticket button {
+  min-height: 44px;
+  font-size: 11px;
+  padding: 8px;
+}
 .entry-form h2 {
   font-size: 25px;
   margin: 10px 0 24px;
