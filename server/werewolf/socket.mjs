@@ -53,9 +53,9 @@ export function registerWerewolf(io) {
         if (action === 'create') {
           if (socket.data.room) throw new Error('Bạn đang ở trong một phòng.')
           if (rooms.size >= 200) throw new Error('Server đang đầy phòng. Hãy thử lại sau.')
-          let room = createRoom(input.name, input.avatar, Date.now(), input.cardsOnly === true)
+          let room = createRoom(input.name, input.avatar, Date.now(), input.cardsOnly !== false)
           while (rooms.has(room.code))
-            room = createRoom(input.name, input.avatar, Date.now(), input.cardsOnly === true)
+            room = createRoom(input.name, input.avatar, Date.now(), input.cardsOnly !== false)
           rooms.set(room.code, room)
           ack({ ok: true, session: attach(socket, room, room.members[0]) })
           return

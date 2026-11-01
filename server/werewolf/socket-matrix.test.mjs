@@ -99,7 +99,7 @@ test('real sockets: simultaneous ballots, Martyr reconnect and dead Mary reconne
     })
   }
   const host = await connect()
-  const session = (await request(host, 'create', { name: 'Host', avatar: 'preset:0' })).session
+  const session = (await request(host, 'create', { name: 'Host', avatar: 'preset:0',cardsOnly:false })).session
   const cards = [
     'werewolf',
     'martyr',

@@ -4,7 +4,16 @@ Bản mới thay thế luồng quản trò tự động/offline cũ. Một quả
 
 ## Luồng chơi
 
-Khi tạo phòng, quản trò có thể bật **Chỉ dùng bộ bài**. Cấu hình giữ nguyên cho cả buổi chơi. Chế độ này cho chọn cả 67 loại nhân vật (trừ lá phụ trợ), chỉ kiểm tra số lá/bản sao; không áp đặt phe, cặp vai hoặc lá ẩn Kẻ say rượu. Sau đếm ngược và mọi người xác nhận xem bài, app dừng ở màn hình ván đang diễn ra. Mỗi người chỉ biết bài mình; quản trò xem được tất cả. Không tự gọi đêm, dùng kỹ năng, vote, gây chết hoặc tính thắng. Quản trò bấm Kết thúc ván để công khai bài, hoặc Chuẩn bị ván mới để về phòng chờ và chia lại sau khi mọi người sẵn sàng. Các ván này lưu danh sách bài nhưng không tự cộng thắng/thua. Mất kết nối không khóa điều hành ván trong chế độ này; người chơi vẫn khôi phục được phiên cũ.
+Phòng mới mặc định bật **Dùng bộ bài · Quản trò điều phối**. Cài đặt nằm trong phòng chờ, không còn ở form tạo phòng. Chỉ quản trò được đổi trước khi chia bài; đổi chế độ xóa deck đang chọn và hủy sẵn sàng để cả bàn xác nhận lại. Chế độ này cho chọn cả 67 loại nhân vật (trừ lá phụ trợ), chỉ kiểm tra số lá/bản sao; không áp đặt phe, cặp vai hoặc lá ẩn Kẻ say rượu.
+
+### Điều phối thủ công
+
+- Sau đếm ngược 5 giây, mỗi người chỉ biết bài mình; quản trò thấy tất cả bài từ màn nhận bài và có thể bắt đầu đêm mà không bị chặn bởi người chưa xác nhận/đang mất kết nối.
+- `manual-night`: bắt đầu đêm kế tiếp; không cho mở hai đêm liên tiếp khi chưa công bố bình minh. `manual-dawn`: quản trò chọn 0–24 người chết; xác nhận mới công bố trạng thái và chuyển sang ngày. `manual-execute`: ghi một người bị treo cổ trong ngày. `manual-revive`: khôi phục người bị chọn nhầm, luôn ghi thêm lịch sử thay vì âm thầm xóa diễn biến.
+- Đây là quyết định của người quản trò thật. Không gọi engine kỹ năng, chết liên kết, bắn của Thợ săn, hoặc kết luận thắng tự động. Người bị loại chỉ thấy trạng thái chờ; không nhận role mới, nhật ký kín hoặc bài người khác. Vai và toàn bộ lịch sử chỉ mở cho cả bàn sau kết thúc.
+- `finish-manual` nhận `winningTeam` và `winnerIds` do quản trò xác nhận. UI chọn phe để gợi ý danh sách nhưng cho sửa từng người (đổi phe, thắng riêng, người thắng đã chết). Server kiểm tra danh tính, quyền host, revision, danh sách trùng/sai và trạng thái ván trước khi ghi một lần. Danh sách đã chốt được cộng thắng, người còn lại cộng thua; không suy luận lại theo vai. Chọn Không tính kết quả giữ hành vi cũ `winner:manual`, không cộng thành tích. Sau kết thúc dùng Ván mới để chỉnh bộ bài; lịch sử và thành tích vẫn giữ trong buổi chơi RAM 24h.
+- Luồng wire/socket tạo phòng mặc định `cardsOnly:true` nếu không truyền lựa chọn. Hàm engine cấp thấp vẫn giữ mặc định cũ cho các test/fixture tự động; khi cần chủ động test thủ công phải truyền true. Chế độ tự động có thể bật bằng cách tắt công tắc trong lobby và vẫn dùng luật/vote/role hiện có.
+- Module `server/werewolf/manual-control.mjs` không phụ thuộc luật role. Unit + Socket.IO test bao phủ cả hai chế độ; `manual-matrix.test.mjs` vẫn kiểm chứng mọi loại bài ở 5–24 người.
 
 1. Quản trò tạo phòng. Người chơi quét QR hoặc nhập mã 6 ký tự, đặt tên, chọn avatar có sẵn hoặc ảnh cá nhân, rồi bấm Sẵn sàng.
 2. Quản trò gợi ý bộ bài dựa trên điểm trong JSON, số Sói và giới hạn số lá vật lý; vẫn có thể chỉnh từng lá. Điểm là tham khảo, không bảo đảm cân bằng tuyệt đối.

@@ -78,7 +78,8 @@ it('opens join by default and puts room creation under options', async () => {
   await wrapper.get('.entry-options button').trigger('click')
   expect(wrapper.find('#ww-code').exists()).toBe(false)
   await wrapper.get('.entry-form').trigger('submit')
-  expect(send).toHaveBeenLastCalledWith('create', expect.objectContaining({ cardsOnly: false }))
+  expect(send).toHaveBeenLastCalledWith('create', expect.objectContaining({ cardsOnly: true }))
+  expect(wrapper.find('.cards-only-config').exists()).toBe(false)
 })
 it('QR link preselects the room and only requires the name/avatar confirmation', async () => {
   const { wrapper, send } = entryPage('?room=abc123')
@@ -214,6 +215,54 @@ async function confirmSelection(wrapper: ReturnType<typeof mount>) {
   await wrapper.get('.night-action .action-submit > .ww-primary').trigger('click')
   await flushPromises()
 }
+it('manual mode is configured in lobby, not in the create form', async () => {
+  const { wrapper, send } = page('seer', { phase: 'lobby', host: true, cardsOnly: true })
+  const toggle = wrapper.get('.manual-mode-config [role="switch"]')
+  expect(toggle.attributes('aria-checked')).toBe('true')
+  await toggle.trigger('click')
+  expect(send).toHaveBeenCalledWith('configure-mode', { cardsOnly: false })
+})
+it('manual moderator can select night deaths and confirm explicit winning players', async () => {
+  const { wrapper, send, roomState } = page('seer', {
+    phase: 'manual',
+    host: true,
+    cardsOnly: true,
+    manualStage: 'ready',
+    round: 0,
+  })
+  await wrapper.get('.manual-actions .ww-primary').trigger('click')
+  expect(send).toHaveBeenCalledWith('manual-night', {})
+  roomState.value = { ...roomState.value, revision: 2, round: 1, manualStage: 'night' }
+  await flushPromises()
+  await wrapper.get('.manual-actions .ww-primary').trigger('click')
+  await wrapper.get('.picker-grid button').trigger('click')
+  await wrapper.get('.manual-confirm .ww-primary').trigger('click')
+  expect(send).toHaveBeenCalledWith('manual-dawn', { targets: ['target'] })
+  roomState.value = { ...roomState.value, revision: 3, manualStage: 'day' }
+  await flushPromises()
+  const finish = wrapper
+    .findAll('.manual-actions button')
+    .find((b) => b.text().includes('Kết thúc'))!
+  await finish.trigger('click')
+  await wrapper.get('#manual-winning-team').setValue('independent')
+  await wrapper.get('.manual-result-form .ww-primary').trigger('click')
+  expect(send).toHaveBeenCalledWith('finish-manual', {
+    winningTeam: 'independent',
+    winnerIds: ['me'],
+  })
+})
+it('eliminated manual player only sees waiting status, not a role card or moderator controls', () => {
+  const { wrapper } = page('seer', {
+    phase: 'manual',
+    host: false,
+    cardsOnly: true,
+    alive: false,
+    manualStage: 'night',
+  })
+  expect(wrapper.get('.manual-player-status.is-dead').text()).toContain('Bạn đã bị loại')
+  expect(wrapper.find('.my-card-area').exists()).toBe(false)
+  expect(wrapper.find('.manual-board').exists()).toBe(false)
+})
 
 it('lets the player change targets during a slow draft and confirms only the latest choice', async () => {
   vi.useFakeTimers()
@@ -421,8 +470,8 @@ it('shows manual host controls without night, vote or automatic next actions', (
     current: null,
     action: null,
   })
-  expect(wrapper.text()).toContain('Kết thúc ván')
-  expect(wrapper.text()).toContain('Chuẩn bị ván mới')
+  expect(wrapper.text()).toContain('Kết thúc · Chọn phe thắng')
+  expect(wrapper.text()).toContain('Bắt đầu đêm 3')
   expect(wrapper.find('.host-next').exists()).toBe(false)
   expect(wrapper.find('.night-action').exists()).toBe(false)
   expect(wrapper.find('.verdict-options').exists()).toBe(false)
@@ -436,7 +485,7 @@ it('keeps manual finish controls private to the host', () => {
     current: null,
     action: null,
   })
-  expect(wrapper.text()).toContain('Cả làng đã nhận bài')
+  expect(wrapper.text()).toContain('Chờ quản trò bắt đầu')
   expect(wrapper.findAll('button').some((button) => button.text() === 'Kết thúc ván')).toBe(false)
   expect(wrapper.find('[aria-label="Xem vai trò của tôi"]').exists()).toBe(true)
 })
@@ -461,8 +510,8 @@ it('requires confirmation before the host resets a night', async () => {
   expect(send).toHaveBeenCalledWith('reset-night')
 })
 
-it('finishes a manual game before requesting a new one and requires confirmation', async () => {
-  const { wrapper, send } = page('villager', {
+it('requires explicit results and only rematches from the ended screen', async () => {
+  const { wrapper, send, roomState } = page('villager', {
     phase: 'manual',
     host: true,
     alive: true,
@@ -472,12 +521,18 @@ it('finishes a manual game before requesting a new one and requires confirmation
   })
   await wrapper
     .findAll('button')
-    .find((button) => button.text() === 'Chuẩn bị ván mới')!
+    .find((button) => button.text().includes('Kết thúc · Chọn phe thắng'))!
     .trigger('click')
   expect(send).not.toHaveBeenCalled()
-  const confirm = wrapper
-    .findAll('.dialog-content button')
-    .find((button) => button.text() === 'Chuẩn bị ván mới')!
-  await confirm.trigger('click')
+  await wrapper.get('#manual-winning-team').setValue('manual')
+  await wrapper.get('.manual-result-form .ww-primary').trigger('click')
+  expect(send).toHaveBeenCalledWith('finish-manual', { winningTeam: 'manual', winnerIds: [] })
+  expect(send.mock.calls.map((call) => call[0])).toEqual(['finish-manual'])
+  roomState.value = { ...roomState.value, phase: 'ended', winner: 'manual' }
+  await flushPromises()
+  await wrapper
+    .findAll('.end-actions button')
+    .find((button) => button.text().includes('Ván mới'))!
+    .trigger('click')
   expect(send.mock.calls.map((call) => call[0])).toEqual(['finish-manual', 'rematch'])
 })

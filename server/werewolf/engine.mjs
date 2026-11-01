@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { randomBytes, randomInt } from 'node:crypto'
 import { BASIC_GUIDES, DRUNK_ROLES } from './basic-guides.mjs'
+import { manualControl } from './manual-control.mjs'
 
 const deck = JSON.parse(
   readFileSync(new URL('../../public/werewolf-host/deck.json', import.meta.url), 'utf8'),
@@ -164,6 +165,7 @@ export function createRoom(name, avatar, now = Date.now(), cardsOnly = false) {
     expires: now + 24 * 3600_000,
     phase: 'lobby',
     cardsOnly: cardsOnly === true,
+    manualStage: 'ready',
     nightCheckpoint: null,
     revision: 0,
     round: 0,
@@ -1476,24 +1478,7 @@ export function command(room, actor, action, input = {}, now = Date.now()) {
       input.revision === room.revision && !['lobby', 'ended'].includes(room.phase),
       'Không có ván đang chơi để kết thúc.',
     )
-    phase(room, 'ended')
-    room.winner = 'manual'
-    room.lastSummary = 'Quản trò đã kết thúc ván. Ứng dụng không tự tính thắng/thua.'
-    log(room, room.lastSummary)
-    room.history.push({
-      game: room.game,
-      winner: 'manual',
-      players: players(room).map((p) => ({
-        id: p.id,
-        name: p.name,
-        avatar: p.avatar,
-        role: p.role,
-        originalRole: p.originalRole,
-        won: false,
-        alive: p.alive,
-      })),
-      logs: [...room.logs],
-    })
+    manualControl(room,action,input,{check,players,phase,log})
     return
   }
   if (action === 'abort') {
@@ -1581,6 +1566,20 @@ export function command(room, actor, action, input = {}, now = Date.now()) {
     return
   }
   check(actor.host, 'Chỉ quản trò được thực hiện thao tác này.')
+  if(action==='configure-mode') {
+    check(room.phase==='lobby','Chỉ đổi chế độ trước khi chia bài.')
+    check(typeof input.cardsOnly==='boolean','Chế độ không hợp lệ.')
+    if(room.cardsOnly===input.cardsOnly) return
+    room.cardsOnly=input.cardsOnly;room.deck=[];room.drunkRole='villager';room.manualStage='ready'
+    players(room).forEach(p=>{p.ready=false})
+    room.revision++
+    return
+  }
+  if(action.startsWith('manual-')) {
+    check(room.cardsOnly,'Chỉ dùng điều phối thủ công trong chế độ quản trò.')
+    manualControl(room,action,input,{check,players,phase,log})
+    return
+  }
   if (action === 'teen-check') {
     check(
       room.phase === 'teen-review' &&
@@ -1649,11 +1648,13 @@ export function command(room, actor, action, input = {}, now = Date.now()) {
         deathRound: null,
         blessedBy: null,
         revengeTeam: null,
+        manualDeathReason: null,
       }),
     )
     room.logs = []
     room.nightCheckpoint = null
     room.round = 0
+    room.manualStage = 'ready'
     room.game++
     room.winner = null
     room.deaths = []
@@ -1740,6 +1741,7 @@ export function command(room, actor, action, input = {}, now = Date.now()) {
         publicRole: null,
         silenced: false,
         banished: false,
+        manualDeathReason:null,
       }),
     )
     room.logs = []
@@ -1750,6 +1752,7 @@ export function command(room, actor, action, input = {}, now = Date.now()) {
     room.votes = {}
     room.deaths = []
     room.round = 0
+    room.manualStage='ready'
     room.lastSummary = ''
     phase(room, 'lobby')
     return
@@ -1758,7 +1761,7 @@ export function command(room, actor, action, input = {}, now = Date.now()) {
 }
 export function view(room, viewer, now = Date.now()) {
   const canSeeRoles =
-    (viewer.host && !['lobby', 'countdown', 'reveal'].includes(room.phase)) ||
+    (viewer.host && (!['lobby', 'countdown', 'reveal'].includes(room.phase) || (room.cardsOnly && room.phase==='reveal'))) ||
     room.phase === 'ended'
   const isActor =
     ['night', 'death-action', 'martyr'].includes(room.phase) &&
@@ -1799,6 +1802,7 @@ export function view(room, viewer, now = Date.now()) {
         'martyr',
       ].includes(room.phase),
     wins: p.wins,
+    manualDeathReason: room.cardsOnly && (viewer.host || viewer.id===p.id || room.phase==='ended') ? p.manualDeathReason || null : null,
     losses: p.losses,
     role: canSeeRoles
       ? room.phase === 'ended' && !room.cardsOnly
@@ -1813,6 +1817,7 @@ export function view(room, viewer, now = Date.now()) {
     revision: room.revision,
     phase: room.phase,
     cardsOnly: !!room.cardsOnly,
+    manualStage: room.cardsOnly ? room.manualStage || 'ready' : null,
     teenChecks:
       viewer.host && room.phase === 'teen-review'
         ? teenActors(room).map((p) => ({
@@ -1857,7 +1862,7 @@ export function view(room, viewer, now = Date.now()) {
     drunkRole: viewer.host && room.phase === 'lobby' ? room.drunkRole : null,
     seatOrder: (room.seatOrder || []).filter((id) => players(room).some((p) => p.id === id)),
     myRole:
-      !viewer.host && !['lobby', 'countdown'].includes(room.phase)
+      !viewer.host && !['lobby', 'countdown'].includes(room.phase) && !(room.cardsOnly && !viewer.alive && room.phase!=='ended')
         ? room.phase === 'ended' && !room.cardsOnly
           ? actualRole(viewer)
           : viewer.role
@@ -1871,7 +1876,7 @@ export function view(room, viewer, now = Date.now()) {
     seen: viewer.seen,
     notes: viewer.host || viewer.alive || isActor ? viewer.notes : [],
     clues: room.ghostClues || [],
-    canVote: !viewer.host && viewer.alive && !viewer.banished,
+    canVote: !room.cardsOnly && !viewer.host && viewer.alive && !viewer.banished,
     voterCount: voters(room).length,
     current: room.turn
       ? {
@@ -1914,10 +1919,10 @@ export function view(room, viewer, now = Date.now()) {
     vote: room.votes[viewer.id] ?? null,
     voteCount: ['nominate', 'verdict'].includes(room.phase) ? Object.keys(room.votes).length : 0,
     ballot: room.ballot,
-    summary: ['day', 'day-end', 'day-extra', 'death-action', 'ended'].includes(room.phase)
+    summary: ['manual','day', 'day-end', 'day-extra', 'death-action', 'ended'].includes(room.phase)
       ? room.lastSummary
       : '',
-    deaths: ['day', 'day-end', 'day-extra', 'death-action', 'ended'].includes(room.phase)
+    deaths: ['manual','day', 'day-end', 'day-extra', 'death-action', 'ended'].includes(room.phase)
       ? room.deaths
       : [],
     winner: room.winner,

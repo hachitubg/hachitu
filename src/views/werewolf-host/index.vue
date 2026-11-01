@@ -17,6 +17,8 @@ import PlayerAvatar from './components/PlayerAvatar.vue'
 import NightJournal from './components/NightJournal.vue'
 import CardLibrary from './components/CardLibrary.vue'
 import TargetPicker from './components/TargetPicker.vue'
+import ManualControlBoard from './components/ManualControlBoard.vue'
+import ManualResultForm from './components/ManualResultForm.vue'
 import { useTargetDraft } from './composables/useTargetDraft'
 import { randomAvatar } from './utils/avatars'
 import { sessionStandings } from './utils/journal'
@@ -34,8 +36,6 @@ onScopeDispose(() => {
 const { copy, copied } = useClipboard()
 const { y: scrollY } = useWindowScroll()
 const mode = ref<'create' | 'join'>('join')
-const cardsOnly = ref(false)
-const manualNewGame = ref(false)
 const invitedCode = (new URLSearchParams(location.search).get('room') || '').trim().toUpperCase()
 const invitation = ref(/^[A-Z0-9]{6}$/.test(invitedCode))
 const code = ref(invitedCode)
@@ -79,6 +79,20 @@ const modal = ref<
   | null
 >(null)
 const confirmingAbort = ref(false)
+watch(
+  () => state.value?.alive,
+  (alive) => {
+    if (
+      alive === false &&
+      state.value?.cardsOnly &&
+      !state.value.host &&
+      state.value.phase === 'manual'
+    ) {
+      revealed.value = false
+      modal.value = null
+    }
+  },
+)
 const dialog = ref<HTMLDialogElement>()
 const historyGame = ref<number | null>(null)
 const people = computed(() => state.value?.members.filter((p) => !p.host) || [])
@@ -316,7 +330,7 @@ async function enter() {
     name: name.value,
     avatar: avatar.value,
     code: code.value.trim().toUpperCase(),
-    ...(mode.value === 'create' ? { cardsOnly: cardsOnly.value } : {}),
+    ...(mode.value === 'create' ? { cardsOnly: true } : {}),
   })
 }
 async function avatarFile(event: Event) {
@@ -361,14 +375,12 @@ async function avatarFile(event: Event) {
 function openDeck() {
   modal.value = 'deck'
 }
-function openManualFinish(newGame: boolean) {
-  manualNewGame.value = newGame
+function openManualFinish() {
   modal.value = 'finish-manual'
 }
-async function finishManual() {
-  if (await send('finish-manual')) {
+async function finishManual(data: Input) {
+  if (await send('finish-manual', data)) {
     closeModal()
-    if (manualNewGame.value) await send('rematch')
   }
 }
 async function resetNight() {
@@ -563,15 +575,6 @@ function handleDialogClick(event: MouseEvent) {
             required
         /></template>
         <AvatarPicker v-model="avatar" :busy="imageBusy || busy" @upload="avatarPicker?.click()" />
-        <label v-if="mode === 'create'" class="cards-only-config">
-          <input v-model="cardsOnly" type="checkbox" aria-label="Chỉ dùng bộ bài" />
-          <span
-            ><strong>Chỉ dùng bộ bài</strong
-            ><small
-              >Chọn đủ 67 vai. App chỉ chia bài bí mật, quản trò tự điều hành ván chơi.</small
-            ></span
-          >
-        </label>
         <input ref="avatarPicker" type="file" accept="image/*" hidden @change="avatarFile" /><button
           class="ww-primary"
           :disabled="
@@ -597,7 +600,7 @@ function handleDialogClick(event: MouseEvent) {
         <h1>Chào mừng<br /><em>về làng.</em></h1>
         <p>{{ readyCount }}/{{ people.length }} người đã sẵn sàng · quản trò không nhận bài</p>
         <p v-if="state.cardsOnly" class="fineprint">
-          Chỉ dùng bộ bài · Quản trò điều hành trực tiếp.
+          Dùng bộ bài · Quản trò ghi diễn biến, người chết và kết quả.
         </p>
         <div class="room-ticket">
           <button
@@ -617,6 +620,30 @@ function handleDialogClick(event: MouseEvent) {
         </div>
         <p class="fineprint">Quét QR bằng camera điện thoại hoặc nhập mã phòng.</p>
         <div class="lobby-controls" v-if="state.host">
+          <section class="manual-mode-config">
+            <div>
+              <Icon icon="lucide:book-open-check" /><strong
+                >Dùng bộ bài · Quản trò điều phối</strong
+              >
+            </div>
+            <p>
+              Chia mọi lá bài, ghi đêm/ngày, người bị loại và phe thắng. Quản trò tự quyết định kỹ
+              năng ngoài bàn chơi.
+            </p>
+            <button
+              role="switch"
+              :aria-checked="state.cardsOnly"
+              :disabled="locked"
+              @click="run('configure-mode', { cardsOnly: !state.cardsOnly })"
+            >
+              <Icon :icon="state.cardsOnly ? 'lucide:toggle-right' : 'lucide:toggle-left'" />{{
+                state.cardsOnly ? 'Đang bật · Mặc định' : 'Đang tắt · App tự xử lý luật'
+              }}</button
+            ><small
+              >Đổi chế độ sẽ bỏ bộ bài đang chọn và yêu cầu mọi người sẵn sàng lại. Chỉ đổi trước
+              khi chia bài.</small
+            >
+          </section>
           <button class="ww-primary" :disabled="locked || people.length < 5" @click="suggest">
             <Icon icon="lucide:shuffle" />Gợi ý bộ bài cân bằng</button
           ><button :disabled="locked" @click="openDeck">
@@ -793,7 +820,7 @@ function handleDialogClick(event: MouseEvent) {
       >
       <template v-else>
         <div class="play-layout">
-          <aside v-if="!state.host" class="my-card-area">
+          <aside v-if="!state.host && !(state.cardsOnly && !state.alive)" class="my-card-area">
             <button
               v-if="targetSelectionActive"
               class="pocket-card"
@@ -858,7 +885,10 @@ function handleDialogClick(event: MouseEvent) {
                     : 'đủ người, quản trò sẽ bắt đầu đêm đầu tiên.'
                 }}
               </p>
-              <div v-if="state.host && state.phase === 'dealt'" class="identity-list">
+              <div
+                v-if="state.host && state.phase === 'dealt' && !state.cardsOnly"
+                class="identity-list"
+              >
                 <div v-for="p in people" :key="p.id">
                   <PlayerAvatar class="avatar" :value="p.avatar" :name="p.name" /><strong>{{
                     p.name
@@ -870,22 +900,47 @@ function handleDialogClick(event: MouseEvent) {
                 </div>
               </div></template
             >
-            <template v-if="state.phase === 'manual'">
-              <span class="eyebrow">CHỈ DÙNG BỘ BÀI</span>
-              <h2>Cả làng đã nhận bài</h2>
+            <ManualControlBoard
+              v-if="state.cardsOnly && state.host && ['manual', 'reveal'].includes(state.phase)"
+              :state="state"
+              :roles="catalog"
+              :locked="locked"
+              @command="run"
+              @finish="openManualFinish"
+            />
+            <section
+              v-if="state.cardsOnly && !state.host && state.phase === 'manual'"
+              class="manual-player-status"
+              :class="{ 'is-dead': !state.alive }"
+            >
+              <Icon
+                :icon="
+                  !state.alive
+                    ? 'lucide:skull'
+                    : state.manualStage === 'night'
+                      ? 'lucide:moon-star'
+                      : 'lucide:sunrise'
+                "
+              />
+              <h2>
+                {{
+                  !state.alive
+                    ? 'Bạn đã bị loại'
+                    : state.manualStage === 'night'
+                      ? `Đêm ${state.round}`
+                      : state.manualStage === 'day'
+                        ? `Ngày ${state.round}`
+                        : 'Chờ quản trò bắt đầu'
+                }}
+              </h2>
               <p>
-                Quản trò điều hành trực tiếp. Giữ kín lá bài của bạn cho đến khi quản trò kết thúc
-                ván.
+                {{
+                  !state.alive
+                    ? 'Hãy giữ im lặng và chờ ván kết thúc. Vai trò và lịch sử sẽ được mở khi kết thúc ván.'
+                    : 'Làm theo lời quản trò ngoài bàn chơi. Điện thoại sẽ cập nhật khi bạn bị loại hoặc ván kết thúc.'
+                }}
               </p>
-              <div v-if="state.host" class="identity-list">
-                <div v-for="p in people" :key="p.id">
-                  <PlayerAvatar class="avatar" :value="p.avatar" :name="p.name" /><strong>{{
-                    p.name
-                  }}</strong
-                  ><span>{{ roleName(p.role) }}</span>
-                </div>
-              </div>
-            </template>
+            </section>
             <template v-if="state.phase === 'teen-review'">
               <h2>Kiểm tra điều kiện cuối ngày</h2>
               <p>
@@ -1249,15 +1304,6 @@ function handleDialogClick(event: MouseEvent) {
             >
               {{ nextLabel }}<Icon icon="lucide:arrow-right" />
             </button>
-            <div
-              v-if="state.host && state.cardsOnly && ['reveal', 'manual'].includes(state.phase)"
-              class="end-actions"
-            >
-              <button class="ww-primary" :disabled="locked" @click="openManualFinish(false)">
-                Kết thúc ván
-              </button>
-              <button :disabled="locked" @click="openManualFinish(true)">Chuẩn bị ván mới</button>
-            </div>
             <p v-if="state.host && state.waitingFor?.length" class="waiting-list">
               Đang chờ: {{ state.waitingFor.map(personName).join(', ') }}.
             </p>
@@ -1337,16 +1383,14 @@ function handleDialogClick(event: MouseEvent) {
           </div>
         </section>
         <section v-if="modal === 'finish-manual' && state?.host">
-          <h3>{{ manualNewGame ? 'Kết thúc và chuẩn bị ván mới?' : 'Kết thúc ván đang chơi?' }}</h3>
-          <p>
-            Lá bài của mọi người sẽ được công khai. Chế độ chỉ dùng bộ bài không tự tính thắng/thua.
-          </p>
-          <div class="end-actions">
-            <button @click="closeModal">Tiếp tục chơi</button
-            ><button class="ww-primary" :disabled="busy || !connected" @click="finishManual">
-              {{ manualNewGame ? 'Chuẩn bị ván mới' : 'Kết thúc ván' }}
-            </button>
-          </div>
+          <h3>Chốt kết quả ván chơi</h3>
+          <ManualResultForm
+            :players="people"
+            :roles="catalog"
+            :disabled="busy || !connected"
+            @confirm="finishManual"
+            @cancel="closeModal"
+          />
         </section>
         <section v-if="modal === 'qr' && state" class="qr-enlarged">
           <img v-if="qr" :src="qr" alt="Mã QR tham gia phòng" />
@@ -1517,8 +1561,8 @@ function handleDialogClick(event: MouseEvent) {
         >
         <template v-if="modal === 'stats'">
           <p class="fineprint">
-            Thành tích cộng dồn trong buổi chơi. Ván hủy và ván chỉ dùng bộ bài không tự tính
-            thắng/thua.
+            Thành tích cộng dồn trong buổi chơi, gồm kết quả do quản trò xác nhận. Ván hủy hoặc chọn
+            Không tính kết quả sẽ không cộng thắng/thua.
           </p>
           <div v-if="standings.length" class="standings-list">
             <article v-for="(person, index) in standings" :key="person.id">
@@ -1542,7 +1586,26 @@ function handleDialogClick(event: MouseEvent) {
           <p v-else class="journal-empty">Chưa có người chơi trong buổi này.</p>
         </template>
         <template v-if="modal === 'help'"
-          ><div class="help-steps">
+          ><div v-if="state?.cardsOnly" class="help-steps">
+            <p>
+              <b>01 · Chia bài.</b> Người chơi đặt tên, chọn avatar và sẵn sàng. Quản trò chốt bộ
+              bài; quản trò không nhận bài, chỉ quản trò thấy toàn bộ vai.
+            </p>
+            <p>
+              <b>02 · Điều phối ngoài bàn chơi.</b> Quản trò bấm bắt đầu đêm, gọi vai và xử lý kỹ
+              năng trực tiếp. Không cần người chơi chọn mục tiêu trên điện thoại.
+            </p>
+            <p>
+              <b>03 · Ghi diễn biến.</b> Công bố người chết để chuyển sang ngày; chọn người treo cổ
+              sau thảo luận ngoài bàn. Nếu nhầm, dùng Khôi phục để sửa và ghi thêm lịch sử.
+            </p>
+            <p>
+              <b>04 · Chốt kết quả.</b> Chọn phe và xác nhận từng người thắng, kể cả người đã chết
+              hoặc đổi phe. Hết ván mới công khai vai trò, lịch sử cho tất cả. Thành tích giữ trong
+              buổi chơi; server restart hoặc phòng hết hạn sẽ mất dữ liệu.
+            </p>
+          </div>
+          <div v-else class="help-steps">
             <p>
               <b>01 · Về làng.</b> Quản trò tạo phòng, bạn bè quét QR, chọn tên và bấm Sẵn sàng.
               Quản trò không nhận bài.

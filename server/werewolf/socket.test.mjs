@@ -5,6 +5,24 @@ import { Server } from 'socket.io'
 import { io as client } from 'socket.io-client'
 import { registerWerewolf } from './socket.mjs'
 
+async function waitForState(socket, predicate) {
+  if (predicate(socket.latest)) return
+  await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      socket.off('state', onState)
+      reject(new Error('State synchronization timeout'))
+    }, 3000)
+    function onState(value) {
+      if (predicate(value)) {
+        clearTimeout(timer)
+        socket.off('state', onState)
+        resolve()
+      }
+    }
+    socket.on('state', onState)
+  })
+}
+
 test('real sockets: private dealing, resume, a full night and two-stage voting through rematch', async (t) => {
   const http = createServer()
   const io = new Server(http)
@@ -58,7 +76,9 @@ test('real sockets: private dealing, resume, a full night and two-stage voting t
     })
   }
   const host = await connect()
-  const hostSession = (await request(host, 'create', { name: 'Host', avatar: 'preset:0' })).session
+  const hostSession = (
+    await request(host, 'create', { name: 'Host', avatar: 'preset:0', cardsOnly: false })
+  ).session
   const peers = [],
     sessions = []
   for (let n = 0; n < 5; n++) {
@@ -198,9 +218,7 @@ test('real sockets preserve cards-only configuration and hide roles until the ho
     return reply
   }
   const host = await connect()
-  const session = (
-    await request(host, 'create', { name: 'Host', avatar: 'preset:0', cardsOnly: true })
-  ).session
+  const session = (await request(host, 'create', { name: 'Host', avatar: 'preset:0' })).session
   assert.equal(host.latest.cardsOnly, true)
   const peers = []
   for (let i = 0; i < 5; i++) {
@@ -232,8 +250,27 @@ test('real sockets preserve cards-only configuration and hide roles until the ho
     assert.ok(peer.latest.members.every((person) => person.role === null))
     assert.equal(peer.latest.action, null)
   }
-  await request(host, 'finish-manual')
-  assert.equal(host.latest.winner, 'manual')
+  await request(host, 'manual-night')
+  await Promise.all(
+    peers.map((peer) => waitForState(peer, (s) => s.manualStage === 'night' && s.round === 1)),
+  )
+  assert.ok(peers.every((peer) => peer.latest.manualStage === 'night' && peer.latest.round === 1))
+  await request(host, 'manual-dawn', { targets: [peers[0].latest.myId] })
+  await waitForState(peers[0], (s) => s.alive === false)
+  assert.equal(peers[0].latest.alive, false)
+  assert.equal(peers[0].latest.myRole, null)
+  assert.deepEqual(peers[0].latest.logs, [])
+  await request(host, 'manual-execute', { targets: [peers[1].latest.myId] })
+  await waitForState(peers[1], (s) => s.alive === false)
+  assert.equal(peers[1].latest.alive, false)
+  await request(host, 'finish-manual', {
+    winningTeam: 'independent',
+    winnerIds: [peers[2].latest.myId],
+  })
+  await Promise.all(peers.map((peer) => waitForState(peer, (s) => s.phase === 'ended')))
+  assert.equal(host.latest.winner, 'independent')
+  assert.equal(peers[2].latest.myWon, true)
+  assert.equal(peers[0].latest.myWon, false)
   assert.ok(host.latest.members.filter((person) => !person.host).every((person) => person.role))
   await request(host, 'rematch')
   assert.equal(host.latest.cardsOnly, true)

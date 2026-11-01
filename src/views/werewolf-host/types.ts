@@ -16,6 +16,7 @@ export interface Role {
   drunkEligible?: boolean
 }
 export interface Member {
+  manualDeathReason?: string | null
   id: string
   name: string
   avatar: string
@@ -39,6 +40,7 @@ export interface Log {
   message: string
 }
 export interface History {
+  adjudicated?: boolean
   game: number
   winner: string
   logs: Log[]
@@ -53,6 +55,7 @@ export interface History {
   }[]
 }
 export interface RoomState {
+  manualStage?: 'ready' | 'night' | 'day' | null
   teenChecks?: { id: string; spoken: boolean | null }[]
   cardsOnly: boolean
   canResetNight: boolean
@@ -136,6 +139,8 @@ export interface Reply {
   session?: Session
 }
 export interface Input {
+  winningTeam?: 'manual' | 'village' | 'werewolf' | 'vampire' | 'independent'
+  winnerIds?: string[]
   cardsOnly?: boolean
   playerId?: string
   revision?: number
